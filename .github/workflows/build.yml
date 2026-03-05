@@ -63,7 +63,7 @@ jobs:
         uses: ok-oldking/partial-sync-repo@master
         with:
           repos: |
-            https://alicejump:${{ secrets.OK_GH }}@github.com/alicejump/ok-boilerplate-update.git
+            https://alicejump:${{ secrets.OK_GH }}@github.com/alicejump/ok-infinity-nikki.git
           sync_list: 'deploy.txt'
           tag: ${{ github.ref_name }}
           gitignore_file: '.update_repo_gitignore'
