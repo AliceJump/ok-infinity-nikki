@@ -1,0 +1,101 @@
+{
+    "info": {
+        "year": 2026,
+        "version": "3.3.10",
+        "description": "COCO Label Conversion",
+        "contributor": "CVHub",
+        "url": "https://github.com/CVHub520/X-AnyLabeling",
+        "date_created": "2026-03-05"
+    },
+    "licenses": [
+        {
+            "id": 1,
+            "url": "https://www.gnu.org/licenses/gpl-3.0.html",
+            "name": "GNU GENERAL PUBLIC LICENSE Version 3"
+        }
+    ],
+    "categories": [
+        {
+            "id": 1,
+            "name": "dialog_icon",
+            "supercategory": ""
+        },
+        {
+            "id": 2,
+            "name": "skip_choose",
+            "supercategory": ""
+        },
+        {
+            "id": 3,
+            "name": "skip_f",
+            "supercategory": ""
+        }
+    ],
+    "images": [
+        {
+            "license": 0,
+            "url": null,
+            "file_name": "images/0.png",
+            "height": 1080,
+            "width": 1920,
+            "date_captured": null,
+            "id": 0
+        },
+        {
+            "license": 0,
+            "url": null,
+            "file_name": "images/1.png",
+            "height": 1080,
+            "width": 1920,
+            "date_captured": null,
+            "id": 2
+        }
+    ],
+    "annotations": [
+        {
+            "id": 0,
+            "image_id": 0,
+            "category_id": 3,
+            "bbox": [
+                1685,
+                1009,
+                20,
+                20
+            ],
+            "area": 410.0,
+            "iscrowd": 0,
+            "ignore": 0,
+            "segmentation": []
+        },
+        {
+            "id": 2,
+            "image_id": 2,
+            "category_id": 2,
+            "bbox": [
+                1658,
+                1009,
+                47,
+                20
+            ],
+            "area": 933.7179187875894,
+            "iscrowd": 0,
+            "ignore": 0,
+            "segmentation": []
+        },
+        {
+            "id": 3,
+            "image_id": 2,
+            "category_id": 1,
+            "bbox": [
+                58,
+                35,
+                32,
+                38
+            ],
+            "area": 1231.6505549588253,
+            "iscrowd": 0,
+            "ignore": 0,
+            "segmentation": []
+        }
+    ]
+}

@@ -1,0 +1,3 @@
+dialog_icon
+skip_choose
+skip_f
