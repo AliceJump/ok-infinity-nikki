@@ -58,16 +58,16 @@ jobs:
               python -m unittest $_.FullName
           } 
 
-      - name: Sync Repositories # 同步部分代码(deploy.txt中), 合并tag中间更新日志, 到更新库, 以减少用户更新使用的git库大小
-        id: sync   # Give the step an ID to access its outputs
-        uses: ok-oldking/partial-sync-repo@master
-        with:
-          repos: |
-            https://alicejump:${{ secrets.OK_GH }}@github.com/alicejump/ok-infinity-nikki.git
-          sync_list: 'deploy.txt'
-          tag: ${{ github.ref_name }}
-          gitignore_file: '.update_repo_gitignore'
-          show_author: true #在更新日志中加入作者
+      # - name: Sync Repositories # 同步部分代码(deploy.txt中), 合并tag中间更新日志, 到更新库, 以减少用户更新使用的git库大小
+      #   id: sync   # Give the step an ID to access its outputs
+      #   uses: ok-oldking/partial-sync-repo@master
+      #   with:
+      #     repos: |
+      #       https://alicejump:${{ secrets.OK_GH }}@github.com/alicejump/ok-infinity-nikki.git
+      #     sync_list: 'deploy.txt'
+      #     tag: ${{ github.ref_name }}
+      #     gitignore_file: '.update_repo_gitignore'
+      #     show_author: true #在更新日志中加入作者
 
       - name: Build with PyAppify Action
         id: build-app
