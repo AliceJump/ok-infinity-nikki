@@ -24,8 +24,8 @@ jobs:
           [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
           git config --global core.autocrlf false
           git config --global core.eol lf
-          git config --global user.email "ok-oldking@users.noreply.github.com"
-          git config --global user.name "ok-oldking"
+          git config --global user.email "alicejump@example.com"
+          git config --global user.name "alicejump"
           echo "action_state=yellow" >> $env:GITHUB_ENV
           echo "${{ env.action_state }}"
 
@@ -63,7 +63,7 @@ jobs:
         uses: ok-oldking/partial-sync-repo@master
         with:
           repos: |
-            https://ok-oldking:${{ secrets.OK_GH }}@github.com/ok-oldking/ok-boilerplate-update.git
+            https://alicejump:${{ secrets.OK_GH }}@github.com/alicejump/ok-boilerplate-update.git
           sync_list: 'deploy.txt'
           tag: ${{ github.ref_name }}
           gitignore_file: '.update_repo_gitignore'
