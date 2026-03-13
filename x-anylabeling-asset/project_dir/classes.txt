@@ -1,3 +1,4 @@
 dialog_icon
+skip_b
 skip_choose
 skip_f

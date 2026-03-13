@@ -70,7 +70,7 @@ config = {
     "start_timeout": 120,  # default 60
     "window_size": {"width": 1200, "height": 800, "min_width": 600, "min_height": 450},  # ok-script窗口大小
     "supported_resolution": {
-        "ratio": "16:9",  # 支持的游戏分辨率
+        "ratio": "3:2",  # 支持的游戏分辨率
         "min_size": (1280, 720),  # 支持的最低游戏分辨率
         "resize_to": [(2560, 1440), (1920, 1080), (1600, 900), (1280, 720)],  # 可选, 如果非16:9自动缩放为 resize_to
     },
@@ -84,7 +84,7 @@ config = {
         }
     },
     "screenshots_folder": "screenshots",  # 截图存放目录, 每次重新启动会清空目录
-    "gui_title": "ok-script-boilerplate",  # 窗口名
+    "gui_title": "ok-ikn",  # 窗口名
     "template_matching": {  # 可选, 如使用OpenCV的模板匹配
         "coco_feature_json": os.path.join(
             "assets", "coco_detection.json"

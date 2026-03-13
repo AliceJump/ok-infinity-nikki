@@ -5,7 +5,7 @@
         "description": "COCO Label Conversion",
         "contributor": "CVHub",
         "url": "https://github.com/CVHub520/X-AnyLabeling",
-        "date_created": "2026-03-05"
+        "date_created": "2026-03-14"
     },
     "licenses": [
         {
@@ -22,11 +22,16 @@
         },
         {
             "id": 2,
-            "name": "skip_choose",
+            "name": "skip_b",
             "supercategory": ""
         },
         {
             "id": 3,
+            "name": "skip_choose",
+            "supercategory": ""
+        },
+        {
+            "id": 4,
             "name": "skip_f",
             "supercategory": ""
         }
@@ -36,7 +41,7 @@
             "license": 0,
             "url": null,
             "file_name": "images/0.png",
-            "height": 1080,
+            "height": 1280,
             "width": 1920,
             "date_captured": null,
             "id": 0
@@ -44,55 +49,79 @@
         {
             "license": 0,
             "url": null,
-            "file_name": "images/1.png",
-            "height": 1080,
+            "file_name": "images/0.png",
+            "height": 1280,
             "width": 1920,
             "date_captured": null,
             "id": 2
+        },
+        {
+            "license": 0,
+            "url": null,
+            "file_name": "images/1.png",
+            "height": 1280,
+            "width": 1920,
+            "date_captured": null,
+            "id": 4
         }
     ],
     "annotations": [
         {
             "id": 0,
             "image_id": 0,
-            "category_id": 3,
+            "category_id": 4,
             "bbox": [
-                1685,
-                1009,
-                20,
-                20
+                1686,
+                1208,
+                18,
+                21
             ],
-            "area": 410.0,
+            "area": 370.2400000000023,
             "iscrowd": 0,
             "ignore": 0,
             "segmentation": []
         },
         {
-            "id": 2,
+            "id": 1,
+            "image_id": 0,
+            "category_id": 1,
+            "bbox": [
+                56,
+                33,
+                35,
+                43
+            ],
+            "area": 1508.1563558017854,
+            "iscrowd": 0,
+            "ignore": 0,
+            "segmentation": []
+        },
+        {
+            "id": 4,
             "image_id": 2,
             "category_id": 2,
             "bbox": [
-                1658,
-                1009,
-                47,
-                20
+                883,
+                772,
+                20,
+                19
             ],
-            "area": 933.7179187875894,
+            "area": 393.8351535467136,
             "iscrowd": 0,
             "ignore": 0,
             "segmentation": []
         },
         {
-            "id": 3,
-            "image_id": 2,
-            "category_id": 1,
+            "id": 6,
+            "image_id": 4,
+            "category_id": 3,
             "bbox": [
-                58,
-                35,
-                32,
-                38
+                1657,
+                1209,
+                47,
+                20
             ],
-            "area": 1231.6505549588253,
+            "area": 960.5825106770271,
             "iscrowd": 0,
             "ignore": 0,
             "segmentation": []

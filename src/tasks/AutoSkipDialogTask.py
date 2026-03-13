@@ -21,5 +21,7 @@ class AutoSkipDialogTask(BaseINTask):
                     else:
                         scroll_bool=False
                     self.send_key("f", after_sleep=0.2)
+            if self.find_one(fL.skip_b, threshold=0.9):
+                self.send_key("f", after_sleep=0.1)
             self.sleep(0.1)
             self.next_frame()
