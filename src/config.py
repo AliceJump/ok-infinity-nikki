@@ -84,7 +84,7 @@ config = {
         }
     },
     "screenshots_folder": "screenshots",  # 截图存放目录, 每次重新启动会清空目录
-    "gui_title": "ok-ikn",  # 窗口名
+    "gui_title": "ok-in",  # 窗口名
     "template_matching": {  # 可选, 如使用OpenCV的模板匹配
         "coco_feature_json": os.path.join(
             "assets", "coco_detection.json"

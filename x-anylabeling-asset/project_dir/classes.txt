@@ -2,3 +2,4 @@ dialog_icon
 skip_b
 skip_choose
 skip_f
+task_icon

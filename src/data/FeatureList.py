@@ -6,3 +6,4 @@ class FeatureList(str, Enum):
     skip_b = 'skip_b'
     skip_choose = 'skip_choose'
     skip_f = 'skip_f'
+    task_icon = 'task_icon'
