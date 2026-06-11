@@ -82,3 +82,5 @@ autohelper
 ############################
 !src/
 !src/data/
+/tests/configs/
+/tests/logs/
