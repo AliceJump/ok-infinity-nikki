@@ -1,3 +1,9 @@
+## Downloads
+
+![downloads](./assets/downloads.svg)
+
+---
+
 ## ok-script boilerplate
 ok-script模板项目, 用于fork后快速开始你的项目
 
