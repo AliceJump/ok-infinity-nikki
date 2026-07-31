@@ -112,10 +112,18 @@ jobs:
         id: build-app
         uses: ok-oldking/pyappify-action@master #使用pyappify打包exe
 
+      - name: Add version to build filenames
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}"
+          Get-ChildItem -Path pyappify_dist -File | ForEach-Object {
+            Rename-Item -LiteralPath $_.FullName -NewName "$($_.BaseName)-$version$($_.Extension)"
+          }
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: pyappify_dist
+          name: pyappify_dist-${{ github.ref_name }}
           path: pyappify_dist/*
 
   release:
@@ -128,7 +136,7 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: pyappify_dist
+          name: pyappify_dist-${{ github.ref_name }}
           path: pyappify_dist
 
       - name: Release
