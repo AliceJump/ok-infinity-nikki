@@ -17,8 +17,6 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -37,8 +35,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Smoke tests failed" }
       - name: Commit uv.lock and requirements.txt back to upgrade branch
         shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -47,5 +43,5 @@ jobs:
           if ($LASTEXITCODE -eq 0) { Write-Host "Lock unchanged"; exit 0 }
           git commit -m "build: lock ok-script 2.0.14 and its runtime extras"
           if ($LASTEXITCODE -ne 0) { throw "Commit failed" }
-          git push "https://x-access-token:${GH_TOKEN}@github.com/AliceJump/ok-infinity-nikki.git" HEAD:refs/heads/upgrade-ok-script-2-0-14
+          git push origin HEAD:refs/heads/upgrade-ok-script-2-0-14
           if ($LASTEXITCODE -ne 0) { throw "Push failed" }
