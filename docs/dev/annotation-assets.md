@@ -1,29 +1,13 @@
-# ok-script Toolkit templates (Nikki)
+# Nikki Toolkit annotations
 
-Nikki uses the current [ok-script Toolkit authoring format](https://github.com/AliceJump/ok-script-toolkit/blob/main/docs/box-resources.md), not X-AnyLabeling. The working template source is a Git submodule at `ok_templates/`, pinned to [ok-infinity-nikki-x-anylabeling-asset](https://github.com/AliceJump/ok-infinity-nikki-x-anylabeling-asset). The old repository name reflects its historical origin; it is not the working format.
+The source library lives in the `ok_templates` Git submodule. Open the parent project with ok-script Toolkit; `ok-script-toolkit.json` points the editor at that folder and publishes the runtime library to `assets/coco_annotations.json` and `assets/images/`, with the label enum at `src/data/FeatureList.py`.
 
-## Checkout
+The active templates are `dialog_icon`, `skip_choose` (W/S), `chat_icon`, and `skip_f`. The boxes follow the user's local annotations. `skip_b`, task-item handling and unused original atlas pages have been removed. The three screenshots remain because they supply active templates or real-scene replay fixtures. `assets/coco_detection.json` is a historical archive and is not loaded by the application.
 
-```powershell
-git clone --recurse-submodules https://github.com/AliceJump/ok-infinity-nikki.git
-cd ok-infinity-nikki
-# In an existing clone:
-git submodule sync --recursive
-git submodule update --init --recursive
-```
+Run `git submodule update --init --recursive` after checkout. Save source files using Toolkit, then explicitly publish runtime resources. Keep one annotation per template category. Before release, verify that the parent gitlink points to a commit available in the source repository.
 
-Open the parent project in VS Code or JetBrains and install ok-script Toolkit. It reads the root `ok-script-toolkit.json` with these project facts:
+`uv run --locked python scripts/verify_templates.py` checks IDs, image dimensions, bounds, and byte-exact source/runtime crops. `uv run --locked python -m unittest discover -s tests -p 'TestProject*.py' -v` covers actual template matching, normalized text-band measurement, independent choice memories, duplicate-click prevention and ignored task-item popups.
 
-- `templates.directory = "ok_templates"`: editable PNGs and three COCO files
-- `labelEnum.path = "src/data/FeatureList"`, `name = "FeatureList"`: existing imports stay valid
-- `templates.cocoAnnotations = "assets/coco_annotations.json"`: the actual **runtime** library
+The locally authored W/S template is validated at native 3392×2400. At 2048×1450 and 1280×906 its resized score is below 0.9. These boxes and threshold are intentionally preserved; no claim of full-size support is made. Dialogue and chat icons pass the seven configured sizes. Live clicks and other dialogue scenes still require game validation.
 
-The working files are `ok_templates/coco_annotations.json` (Template), `ok_templates/boxes.json` (Rect) and `ok_templates/points.json` (Point). The Rect and Point files initially contain empty COCO tables.
-
-## Publishing
-
-Toolkit's **save annotation** updates source files in the `ok_templates` submodule only. Explicitly use Toolkit's **Publish** action to regenerate `assets/coco_annotations.json`, `assets/images/` and, when selected, `src/data/FeatureList.py`. Before committing, check the published output, code references and feature tests. Publishing Position is separate and requires a runtime loader before any `self.pos` references can be used; the plugin alone does not enable it in the game.
-
-The original application used `assets/coco_detection.json`. This PR adds a byte-identical `assets/coco_annotations.json`, updates the runtime path and **retains the old file as a compatibility archive**. The existing 5 template categories and boxes are unchanged; the source submodule has converted, deduplicated working COCO metadata.
-
-The original X-AnyLabeling PNG/JSON work (16 files, 53.7 MB) is preserved in the **asset repository's Git history** (commit `592f0adf22abf7509ea88670a6a51b00d7f17a92`) and no longer appears in the parent working tree. New screenshots and edits should use Toolkit, not the old conversion script.
+Historical X-AnyLabeling work is preserved in the source repository's Git history at `592f0adf22abf7509ea88670a6a51b00d7f17a92`. New authoring uses Toolkit rather than the legacy conversion format.
