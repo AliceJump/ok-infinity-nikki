@@ -103,12 +103,13 @@ config = {
     "my_app": ["src.globals", "Globals"],  # 可选. 全局单例对象, 可以存放加载的模型, 使用og.my_app调用
     "onetime_tasks": [  # 用户点击触发的任务
         ["src.tasks.MyOneTimeTask", "MyOneTimeTask"],
-        ["src.tasks.AutoSkipDialogTask", "AutoSkipDialogTask"],
         # ["src.tasks.MyOneTimeWithAGroup", "MyOneTimeWithAGroup"],
         # ["src.tasks.MyOneTimeWithAGroup2", "MyOneTimeWithAGroup2"],
         # ["src.tasks.MyOneTimeWithBGroup", "MyOneTimeWithBGroup"],
         ["ok", "DiagnosisTask"],
     ],
-    "trigger_tasks": [],  # 不断执行的触发式任务
+    "trigger_tasks": [
+        ["src.tasks.AutoSkipDialogTask", "AutoSkipDialogTask"],
+    ],  # 剧情跳过任务由触发式执行器定期检测
     "custom_tabs": [["src.ui.MyTab", "MyTab"]],  # 可选, 自定义UI, 显示在侧边栏
 }
