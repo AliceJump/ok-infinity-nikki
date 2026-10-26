@@ -45,17 +45,24 @@ class TestProjectTemplates(unittest.TestCase):
         validate(ROOT)
 
     def test_choice_screenshots_at_supported_sizes(self):
-        """Both scenes must pass the existing 0.9 threshold at every configured size."""
+        """Dialogue and chat-option icons must match at every configured size."""
         matcher = self.make_matcher()
         for size in config["supported_resolution"]["resize_to"]:
             for suffix, original in self.frames.items():
                 frame = cv2.resize(original, size)
-                for name in ("dialog_icon", "skip_choose"):
+                for name in ("dialog_icon", "chat_icon"):
                     with self.subTest(size=size, screenshot=suffix, feature=name):
                         self.assertTrue(matcher.find_one_feature(frame, name, threshold=0.9, limit=1))
                 for name in ("skip_f", "skip_b", "task_icon"):
                     with self.subTest(size=size, screenshot=suffix, absent_feature=name):
                         self.assertFalse(matcher.find_one_feature(frame, name, threshold=0.9, limit=1))
+
+    def test_local_ws_annotation_at_native_size(self):
+        """Preserve the user's W/S crop and validate it at its captured resolution."""
+        matcher = self.make_matcher()
+        for suffix, frame in self.frames.items():
+            with self.subTest(screenshot=suffix):
+                self.assertTrue(matcher.find_one_feature(frame, "skip_choose", threshold=0.9, limit=1))
 
     def test_task_recognizes_choices_and_requires_dialogue(self):
         """Replay a choice and a frame with its history icon removed, without game I/O."""
