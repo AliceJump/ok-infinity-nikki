@@ -85,7 +85,7 @@ config = {
     "gui_title": "ok-in",  # 窗口名
     "template_matching": {  # 可选, 如使用OpenCV的模板匹配
         "coco_feature_json": os.path.join(
-            "assets", "coco_detection.json"
+            "assets", "coco_annotations.json"
         ),  # coco格式标记, 需要png图片, 在debug模式运行后, 会对进行切图仅保留被标记部分以减少图片大小
         "default_horizontal_variance": 0.002,  # 默认x偏移, 查找不传box的时候, 会根据coco坐标, match偏移box内的
         "default_vertical_variance": 0.002,  # 默认y偏移

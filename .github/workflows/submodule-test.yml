@@ -1,0 +1,55 @@
+name: Toolkit template source and runtime test
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "ok_templates"
+      - ".gitmodules"
+      - "ok-script-toolkit.json"
+      - "assets/coco_annotations.json"
+      - "src/config.py"
+      - ".github/workflows/submodule-test.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          submodules: recursive
+          fetch-depth: 1
+      - name: Verify submodule pin and preserved runtime semantics
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          import subprocess
+          root=Path('.')
+          pin=subprocess.check_output(['git','rev-parse','HEAD:ok_templates'],text=True).strip()
+          actual=subprocess.check_output(['git','-C','ok_templates','rev-parse','HEAD'],text=True).strip()
+          assert pin == actual, (pin,actual)
+          cfg=json.loads((root/'ok-script-toolkit.json').read_text('utf-8'))
+          assert cfg['templates']['directory']=='ok_templates'
+          assert cfg['templates']['cocoAnnotations']=='assets/coco_annotations.json'
+          assert cfg['labelEnum']['name']=='FeatureList'
+          source=root/'ok_templates'
+          for filename in ('coco_annotations.json','boxes.json','points.json'):
+              data=json.loads((source/filename).read_text('utf-8'))
+              assert all(isinstance(data[key],list) for key in ('images','annotations','categories'))
+          runtime=json.loads((root/'assets/coco_annotations.json').read_text('utf-8'))
+          legacy=json.loads((root/'assets/coco_detection.json').read_text('utf-8'))
+          assert runtime == legacy, 'Runtime COCO changed during layout migration'
+          work=json.loads((source/'coco_annotations.json').read_text('utf-8'))
+          assert {i['name'] for i in work['categories']} == {i['name'] for i in runtime['categories']}
+          label=lambda data: {a['category_id']:tuple(a['bbox']) for a in data['annotations']}
+          assert label(work)==label(runtime), 'Template bounding boxes changed'
+          for entry in work['images']:
+              assert (source/entry['file_name']).is_file()
+          assert not (root/'x-anylabeling-asset').exists()
+          print('Gitlink, Toolkit contracts and five template boxes verified:',pin)
+          PY
