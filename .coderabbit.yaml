@@ -1,0 +1,11 @@
+inheritance: true
+reviews:
+  path_instructions:
+    - path: "**"
+      instructions: |
+        Check that the PR title and description disclose real changes to behavior,
+        dependencies, deployment, CI and source assets. Treat unrelated changes
+        with independent release or rollback paths as separate scope. Do not
+        require arbitrary splits based only on file count or line count.
+        Never recommend deleting or replacing annotation source assets with
+        runtime templates. Verify Git submodule pointers and pinned revisions.

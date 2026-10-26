@@ -1,0 +1,41 @@
+[project]
+name = "ok-infinity-nikki"
+version = "0.1.0"
+description = "Infinity Nikki game automation built on ok-script"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "ok-script==2.0.7b1",
+    "PySide6-Essentials==6.11.1",
+    "PySide6-Fluent-Widgets==1.10.5",
+    "PySideSix-Frameless-Window==0.7.3",
+    "onnxocr-ppocrv5==0.0.14",
+    "openvino==2026.0.0",
+    "opencv-python==4.12.0.88",
+    "numpy>=2.0.0",
+    "Pillow>=10.0.0",
+    "pyautogui==0.9.54",
+    "imagehash==4.3.2",
+    "scikit-image==0.26.0",
+]
+
+[dependency-groups]
+dev = [
+    "polib>=1.2,<2",
+    "ruff>=0.16,<1",
+]
+
+[tool.uv]
+package = false
+override-dependencies = [
+    "pywin32==311; sys_platform == 'win32'",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["x-anylabeling-asset"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]
+

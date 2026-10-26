@@ -1,16 +1,18 @@
-Get-ChildItem -Path ".\tests\*.py" | ForEach-Object {
-  Write-Host "Running tests in $($_.FullName)"
-  try {
-      # Run the Python unittest command
-      python -m unittest $_.FullName
+param(
+    [switch]$LegacyImageTests
+)
 
-      # Check if the previous command succeeded
-      if ($LASTEXITCODE -ne 0) {
-          throw "Tests failed in $($_.FullName)"
-      }
-  } catch {
-      # Stop the loop and return the error
-      Write-Error $_
-      exit 1
-  }
+$ErrorActionPreference = "Stop"
+uv sync --locked
+if ($LASTEXITCODE -ne 0) { throw "uv sync failed" }
+
+uv run --locked python -m compileall -q src main.py main_debug.py
+if ($LASTEXITCODE -ne 0) { throw "Python compilation failed" }
+
+uv run --locked python -m unittest discover -s tests -p "TestProject*.py" -v
+if ($LASTEXITCODE -ne 0) { throw "Project smoke tests failed" }
+
+if ($LegacyImageTests) {
+    uv run --locked python -m unittest discover -s tests -p "TestMain.py" -v
+    if ($LASTEXITCODE -ne 0) { throw "Legacy image tests failed" }
 }
