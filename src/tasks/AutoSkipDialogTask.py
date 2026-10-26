@@ -8,6 +8,7 @@ from src.tasks.BaseINTask import BaseINTask
 
 class AutoSkipDialogTask(BaseINTask, TriggerTask):
     def __init__(self, *args, **kwargs):
+        """Configure periodic, opt-in dialogue detection and choice scrolling state."""
         super().__init__(*args, **kwargs)
         self.name = "自动跳过对话任务"
         self.description = "启用后自动检测并跳过剧情对话"
@@ -15,17 +16,16 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
         self._scroll_on_next_choice = True
 
     def run(self):
+        """Inspect dialogue hints once and return after at most one input action."""
         # 每次触发只检测当前帧。不要使用 while True，以免阻塞其他任务。
         if self.find_one(fL.dialog_icon, threshold=0.9):
-            dialog_box = self.box_of_screen(
-                1460 / 1920, 1000 / 1080, 1810 / 1920, 1040 / 1080
-            )
-            if self.find_one(fL.skip_f, threshold=0.9, box=dialog_box):
+            # 使用模板自己的缩放坐标，兼容 3392×2400 选项提示。
+            if self.find_one(fL.skip_f, threshold=0.9):
                 self._scroll_on_next_choice = True
                 self.send_key("f", after_sleep=0.1)
                 return False
 
-            if self.find_one(fL.skip_choose, threshold=0.9, box=dialog_box):
+            if self.find_one(fL.skip_choose, threshold=0.9):
                 if self._scroll_on_next_choice:
                     self.scroll_relative(0.5, 0.5, -1)
                 self._scroll_on_next_choice = not self._scroll_on_next_choice

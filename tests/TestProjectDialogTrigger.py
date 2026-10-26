@@ -12,23 +12,23 @@ from src.tasks.AutoSkipDialogTask import AutoSkipDialogTask
 
 class TestProjectDialogTrigger(unittest.TestCase):
     def setUp(self):
+        """Create an isolated task with mocked game input and controlled detections."""
         # Test the decision tree without a live game or initializing the executor.
         self.task = AutoSkipDialogTask.__new__(AutoSkipDialogTask)
         self.task._scroll_on_next_choice = True
-        self.task.box_of_screen = Mock(return_value="dialog_box")
         self.task.send_key = Mock()
         self.task.scroll_relative = Mock()
         self.found = set()
 
-        def find_one(feature, *, threshold, box=None):
+        def find_one(feature, *, threshold):
+            """Return selected fixtures while enforcing the production threshold."""
             self.assertEqual(threshold, 0.9)
-            if feature in (Feature.skip_f, Feature.skip_choose):
-                self.assertEqual(box, "dialog_box")
             return object() if feature in self.found else None
 
         self.task.find_one = Mock(side_effect=find_one)
 
     def test_registry_and_trigger_inheritance(self):
+        """Keep dialogue skipping registered exclusively as a trigger task."""
         entry = ["src.tasks.AutoSkipDialogTask", "AutoSkipDialogTask"]
         self.assertTrue(issubclass(AutoSkipDialogTask, TriggerTask))
         self.assertIn(entry, config["trigger_tasks"])
@@ -36,11 +36,13 @@ class TestProjectDialogTrigger(unittest.TestCase):
         self.assertEqual(AutoSkipDialogTask.__init__.__code__.co_name, "__init__")
 
     def test_idle_cycle_does_nothing(self):
+        """An empty frame must never produce input or scrolling."""
         self.assertIs(self.task.run(), False)
         self.task.send_key.assert_not_called()
         self.task.scroll_relative.assert_not_called()
 
     def test_dialogue_skip_has_priority_and_only_one_keypress(self):
+        """Ordinary continuation takes priority over all other visible hints."""
         self.found = {Feature.dialog_icon, Feature.skip_f, Feature.skip_choose,
                       Feature.skip_b, Feature.task_icon}
         self.assertIs(self.task.run(), False)
@@ -48,11 +50,13 @@ class TestProjectDialogTrigger(unittest.TestCase):
         self.task.scroll_relative.assert_not_called()
 
     def test_dialogue_skip_icon_requires_dialogue(self):
+        """Standalone continuation or choice hints must not send input."""
         self.found = {Feature.skip_f, Feature.skip_choose}
         self.assertIs(self.task.run(), False)
         self.task.send_key.assert_not_called()
 
     def test_choice_alternates_scrolling_then_resets_after_disappearing(self):
+        """Continuous choices alternate scrolling and reset when choices disappear."""
         self.found = {Feature.dialog_icon, Feature.skip_choose}
         self.assertIs(self.task.run(), False)
         self.assertIs(self.task.run(), False)
@@ -67,6 +71,7 @@ class TestProjectDialogTrigger(unittest.TestCase):
         self.assertEqual(self.task.scroll_relative.call_count, 2)
 
     def test_fallback_icons_work_without_dialogue(self):
+        """Preserve independent B and task-marker fallback behavior."""
         self.found = {Feature.skip_b, Feature.task_icon}
         self.assertIs(self.task.run(), False)
         self.task.send_key.assert_called_once_with("f", after_sleep=0.1)
