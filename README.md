@@ -34,7 +34,7 @@ uv run --locked python main_debug.py
 | `src/interaction/` | Windows 输入和位置辅助 |
 | `src/image/`, `src/data/` | 图像处理及识别数据 |
 | `assets/` | 运行时模板、COCO 特征数据 |
-| `x-anylabeling-asset/` | 标注工程源文件（独立仓库迁移待完成） |
+| `ok_templates/` | Toolkit 统一 Template/Rect/Point 标注源文件（独立子模块，参见结构迁移 PR） |
 | `tests/` | 测试及历史图片样例 |
 | `i18n/` | 本地化文件 |
 
@@ -49,7 +49,7 @@ uv run --locked python -m compileall -q src main.py main_debug.py
 
 `tests/TestMain.py` 仍是旧模板的图片测试示例，暂不作为 CI 门禁。需要真实《无限暖暖》截图和预期结果后才能迁移为有效测试。
 
-完整目录、打包说明与标注素材仓库拆分步骤请看 [开发指南](docs/dev/DEVELOPMENT.md)。
+完整目录、打包说明与 Toolkit 标注资源接入说明请看 [开发指南](docs/dev/DEVELOPMENT.md)。
 
 ## 发布
 

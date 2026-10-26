@@ -7,7 +7,7 @@
 - `src/tasks/` — Nikki task implementations; `src/interaction/` — Windows interaction helpers.
 - `src/image/` — image processing; `src/data/` — data and feature definitions.
 - `assets/` — runtime templates, COCO metadata and other packaged assets.
-- `x-anylabeling-asset/` — original annotation project; will move to a dedicated repository/submodule.
+- `ok_templates/` — independently managed Toolkit Template/Rect/Point authoring submodule (added by the Toolkit layout PR).
 - `tests/` — tests, with separate legacy image fixtures.
 - `i18n/` — localizations.
 - `.github/workflows/` — CI and release build.
@@ -48,13 +48,20 @@ using PyAppify and creates a GitHub release. Before tagging, confirm
 `pyappify.yml`, `deploy.txt`, `uv.lock` and generated `requirements.txt`
 match the intended release.
 
-## Separating annotations into a submodule
+## Toolkit authoring source (independent migration)
 
-Create a public repository **AliceJump/ok-infinity-nikki-x-anylabeling-asset**
-before trying the split. Commit the exact existing
-`x-anylabeling-asset/` contents (including large PNG/JSON files; use Git LFS
-if necessary) to that repository, then replace the parent folder with a
-Git submodule pinned to the reviewed asset commit, with a matching
-`.gitmodules` entry. Do **not** remove the parent copy until the
-new repository and its Git LFS data have been verified. Runtime `assets/`
-should stay in the parent application unless intentionally migrated later.
+The annotation source uses `ok_templates/` as a Git submodule and
+`ok-script-toolkit.json` at the project root; see the independent
+[Toolkit layout PR](https://github.com/AliceJump/ok-infinity-nikki/pull/2).
+
+- `ok_templates/coco_annotations.json`, `boxes.json`, and `points.json`
+  hold editable Template / Rect / Point annotations (COCO tables).
+- `assets/coco_annotations.json` plus `assets/images/` hold the published,
+  runtime-consumed template library.
+- Saving a working annotation does **not** publish it, and the game will not
+  load new Position resources without a project-specific loader.
+- The historical X-AnyLabeling source lives in the asset repository history
+  and is no longer the supported editing workflow.
+
+Do not include the authoring submodule in release `deploy.txt` or move old
+unverified annotation files into a live runtime directory.

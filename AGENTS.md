@@ -7,4 +7,4 @@ Read the matching skill before changing code, committing, or handling a PR:
 
 `ok-infinity-nikki` follows the basic layout of `ok-end-field`, but does not reuse game-specific assets or runtime logic. Prefer a focused PR for each independently deployable change. Do not push directly to `main`.
 
-The `x-anylabeling-asset` directory is source annotation data, not the application runtime assets. Keep it intact until a separate `ok-infinity-nikki-x-anylabeling-asset` repository has been created and fully populated; then migrate it into a real Git submodule in its own PR.
+The application uses a Toolkit-managed `ok_templates` source repository as a submodule, separate from runtime `assets`. This independent change is tracked in the Toolkit layout PR. Do not reintroduce legacy X-AnyLabeling working files, do not edit the game runtime COCO without a dedicated change, and verify every gitlink SHA before release.
