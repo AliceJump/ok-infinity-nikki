@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Infinity Nikki game automation built on ok-script"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "ok-script==2.0.7b1",
+    "ok-script[default,qt,ocr]==2.0.14",
     "PySide6-Essentials==6.11.1",
     "PySide6-Fluent-Widgets==1.10.5",
     "PySideSix-Frameless-Window==0.7.3",
@@ -33,7 +33,7 @@ override-dependencies = [
 [tool.ruff]
 line-length = 120
 target-version = "py312"
-extend-exclude = ["x-anylabeling-asset"]
+extend-exclude = ["ok_templates"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]

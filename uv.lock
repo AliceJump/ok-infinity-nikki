@@ -175,13 +175,26 @@ wheels = [
 ]
 
 [[package]]
+name = "ok-d3dshot"
+version = "0.1.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "comtypes" },
+    { name = "pillow" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a4/2e/4ffae25148b8e54ee8444714ef20a4cf5e3a0ce0614a489b537c42a141d1/ok_d3dshot-0.1.5.tar.gz", hash = "sha256:51a1d56c0343d175ddf0ee6824688e05a54b26c7a39f8085aa7f1d2a7f003be7", size = 19604, upload-time = "2024-05-31T10:10:31.864Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/07/92/2734784dd8a2a2d60b9170ea4cf122ff99270cef1378191780796be62ed9/ok_d3dshot-0.1.5-py3-none-any.whl", hash = "sha256:a303d962f1a449571e6bb08ee5a97babf9884af4508b9b5951eb177439997f93", size = 24450, upload-time = "2024-05-31T10:10:29.19Z" },
+]
+
+[[package]]
 name = "ok-infinity-nikki"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "imagehash" },
     { name = "numpy" },
-    { name = "ok-script" },
+    { name = "ok-script", extra = ["default", "ocr", "qt"] },
     { name = "onnxocr-ppocrv5" },
     { name = "opencv-python" },
     { name = "openvino" },
@@ -203,7 +216,7 @@ dev = [
 requires-dist = [
     { name = "imagehash", specifier = "==4.3.2" },
     { name = "numpy", specifier = ">=2.0.0" },
-    { name = "ok-script", specifier = "==2.0.7b1" },
+    { name = "ok-script", extras = ["default", "qt", "ocr"], specifier = "==2.0.14" },
     { name = "onnxocr-ppocrv5", specifier = "==0.0.14" },
     { name = "opencv-python", specifier = "==4.12.0.88" },
     { name = "openvino", specifier = "==2026.0.0" },
@@ -223,7 +236,7 @@ dev = [
 
 [[package]]
 name = "ok-script"
-version = "2.0.7b1"
+version = "2.0.14"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "mouse" },
@@ -236,9 +249,26 @@ dependencies = [
     { name = "requests" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/72/df/e27d453882a7fadab94f0d7d9540e9ab836aacfb05ab7312a52e5e73bd03/ok_script-2.0.7b1.tar.gz", hash = "sha256:b3c95121ee60cb4c0904c1592db50e85e9b1dd72587b716b4a2658ce8371abdf", size = 1117009, upload-time = "2026-09-05T09:56:02.237Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0f/aa/25c4951fb5e0e930e99bb1636d0c4dde0b053584d7beeffd8e879dd964eb/ok_script-2.0.14.tar.gz", hash = "sha256:a212319285bb7f7eb5f064e93ff37af52a0b841d3b86915ae4964384111aa906", size = 1150852, upload-time = "2026-10-22T15:57:26.567Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f3/c9/9fbc47e8acf50ded04a234a7522d29de6856d56186ec264e3c1a2f08aa32/ok_script-2.0.7b1-py3-none-any.whl", hash = "sha256:7d9b9570d22390f9edcd612ea2a700e9365b8706318caeb6e520f7228de1fe75", size = 1139070, upload-time = "2026-09-05T09:56:00.716Z" },
+    { url = "https://files.pythonhosted.org/packages/ff/fd/518b13ac5a1a766a7d7bec0ecc66c8975b7379d710589c1fc00ae25c30b3/ok_script-2.0.14-py3-none-any.whl", hash = "sha256:413706532278f4d777a572d023437dbe523ce8fec0304a9a0c203207b74584dd", size = 1164072, upload-time = "2026-10-22T15:57:24.787Z" },
+]
+
+[package.optional-dependencies]
+default = [
+    { name = "numpy" },
+    { name = "ok-d3dshot" },
+    { name = "opencc" },
+    { name = "pillow" },
+]
+ocr = [
+    { name = "onnxocr-ppocrv5" },
+]
+qt = [
+    { name = "darkdetect" },
+    { name = "pyside6-essentials" },
+    { name = "pyside6-fluent-widgets" },
+    { name = "pysidesix-frameless-window" },
 ]
 
 [[package]]
@@ -253,6 +283,17 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/b3/cb/5eb9b54177a26576ddf190bbf077e21d3b60f840108328591c963272211f/onnxocr_ppocrv5-0.0.14.tar.gz", hash = "sha256:503e59486fa97a5dd941f75801fd1cc56629bf1c38c766385392a09c86e67d89", size = 19160874, upload-time = "2026-03-10T18:15:16.064Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cc/29/672c338769a4265febbc1ac91618dae7bc26229d2af1f8179038f8282166/onnxocr_ppocrv5-0.0.14-py3-none-any.whl", hash = "sha256:0eeb3affd03f05381cf4315eb2172116e6c309d3a4a231c12d8d6fae1b830caf", size = 19173226, upload-time = "2026-03-10T18:15:00.021Z" },
+]
+
+[[package]]
+name = "opencc"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/fa/92/92f4519221b833801be1d037cde747f04c4e29e33bd7574b36b898d9e2bf/opencc-1.2.0.tar.gz", hash = "sha256:2bb913c7ed388466b26d38af4c8c4bb419ddb503235d070f0ee1b24998ef8bca", size = 3420630, upload-time = "2026-01-22T09:23:12.382Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f2/89/c3654977ae86211342356c5f455a26d93dd47222c2444e945aab6a4f91cc/opencc-1.2.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:c9851a7b7d50e4c5d52c71972cedbb618542a342ed57ce396be8988bfefdf040", size = 1376098, upload-time = "2026-01-22T09:23:04.052Z" },
+    { url = "https://files.pythonhosted.org/packages/f3/f8/fc8c5f25243a886dcf15329060e3596e4ab967ee2e277920e4feb6067211/opencc-1.2.0-cp312-cp312-manylinux2014_x86_64.whl", hash = "sha256:1f105a05fc76c29a1090cb613996aef26b60525e745e8471dc4485dfe17f2e08", size = 1655493, upload-time = "2026-01-22T09:23:05.387Z" },
+    { url = "https://files.pythonhosted.org/packages/d0/f6/0900195298326bd038469f3db571afd73b893a30fe92648f6418162a4cb8/opencc-1.2.0-cp312-cp312-win_amd64.whl", hash = "sha256:76cf42a9666ac5402478f7fad2f603d253096aa5c41199b173e08d49a9af8046", size = 1763621, upload-time = "2026-01-22T09:53:13.748Z" },
 ]
 
 [[package]]
