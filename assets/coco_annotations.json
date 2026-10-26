@@ -1,17 +1,83 @@
 {
-    "info": {
-        "year": 2026,
-        "version": "3.3.10",
-        "description": "COCO Label Conversion",
-        "contributor": "CVHub",
-        "url": "https://github.com/CVHub520/X-AnyLabeling",
-        "date_created": "2026-03-14"
-    },
-    "licenses": [
+    "images": [
+        {
+            "id": 0,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1280
+        },
+        {
+            "id": 2,
+            "file_name": "images/2.png",
+            "width": 3392,
+            "height": 2400
+        }
+    ],
+    "annotations": [
+        {
+            "id": 0,
+            "image_id": 0,
+            "category_id": 4,
+            "bbox": [
+                1686,
+                1208,
+                18,
+                21
+            ],
+            "area": 378,
+            "iscrowd": 0
+        },
         {
             "id": 1,
-            "url": "https://www.gnu.org/licenses/gpl-3.0.html",
-            "name": "GNU GENERAL PUBLIC LICENSE Version 3"
+            "image_id": 2,
+            "category_id": 1,
+            "bbox": [
+                90,
+                64,
+                69,
+                70
+            ],
+            "area": 4830,
+            "iscrowd": 0
+        },
+        {
+            "id": 4,
+            "image_id": 0,
+            "category_id": 2,
+            "bbox": [
+                883,
+                772,
+                20,
+                19
+            ],
+            "area": 380,
+            "iscrowd": 0
+        },
+        {
+            "id": 6,
+            "image_id": 2,
+            "category_id": 3,
+            "bbox": [
+                2698,
+                2268,
+                98,
+                56
+            ],
+            "area": 5488,
+            "iscrowd": 0
+        },
+        {
+            "id": 8,
+            "image_id": 0,
+            "category_id": 5,
+            "bbox": [
+                1289,
+                418,
+                11,
+                15
+            ],
+            "area": 165,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -39,121 +105,6 @@
             "id": 5,
             "name": "task_icon",
             "supercategory": ""
-        }
-    ],
-    "images": [
-        {
-            "license": 0,
-            "url": null,
-            "file_name": "images/0.png",
-            "height": 1280,
-            "width": 1920,
-            "date_captured": null,
-            "id": 0
-        },
-        {
-            "license": 0,
-            "url": null,
-            "file_name": "images/0.png",
-            "height": 1280,
-            "width": 1920,
-            "date_captured": null,
-            "id": 2
-        },
-        {
-            "license": 0,
-            "url": null,
-            "file_name": "images/1.png",
-            "height": 1280,
-            "width": 1920,
-            "date_captured": null,
-            "id": 4
-        },
-        {
-            "license": 0,
-            "url": null,
-            "file_name": "images/0.png",
-            "height": 1280,
-            "width": 1920,
-            "date_captured": null,
-            "id": 6
-        }
-    ],
-    "annotations": [
-        {
-            "id": 0,
-            "image_id": 0,
-            "category_id": 4,
-            "bbox": [
-                1686,
-                1208,
-                18,
-                21
-            ],
-            "area": 370.2400000000023,
-            "iscrowd": 0,
-            "ignore": 0,
-            "segmentation": []
-        },
-        {
-            "id": 1,
-            "image_id": 0,
-            "category_id": 1,
-            "bbox": [
-                56,
-                33,
-                35,
-                43
-            ],
-            "area": 1508.1563558017854,
-            "iscrowd": 0,
-            "ignore": 0,
-            "segmentation": []
-        },
-        {
-            "id": 4,
-            "image_id": 2,
-            "category_id": 2,
-            "bbox": [
-                883,
-                772,
-                20,
-                19
-            ],
-            "area": 393.8351535467136,
-            "iscrowd": 0,
-            "ignore": 0,
-            "segmentation": []
-        },
-        {
-            "id": 6,
-            "image_id": 4,
-            "category_id": 3,
-            "bbox": [
-                1657,
-                1209,
-                47,
-                20
-            ],
-            "area": 960.5825106770271,
-            "iscrowd": 0,
-            "ignore": 0,
-            "segmentation": []
-        },
-        {
-            "id": 8,
-            "image_id": 6,
-            "category_id": 5,
-            "bbox": [
-                1289,
-                418,
-                11,
-                15
-            ],
-            "area": 170.1001761763302,
-            "iscrowd": 0,
-            "ignore": 0,
-            "segmentation": []
         }
     ]
 }

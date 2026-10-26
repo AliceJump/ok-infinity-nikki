@@ -8,6 +8,9 @@ on:
       - ".gitmodules"
       - "ok-script-toolkit.json"
       - "assets/coco_annotations.json"
+      - "assets/images/**"
+      - "scripts/verify_templates.py"
+      - "tests/TestProjectTemplates.py"
       - "src/config.py"
       - ".github/workflows/submodule-test.yml"
 
@@ -23,7 +26,9 @@ jobs:
           persist-credentials: false
           submodules: recursive
           fetch-depth: 1
-      - name: Verify submodule pin and preserved runtime semantics
+      - name: Install PNG decoder
+        run: python3 -m pip install Pillow==11.3.0
+      - name: Verify submodule pin and Toolkit configuration
         run: |
           python3 - <<'PY'
           import json
@@ -41,15 +46,8 @@ jobs:
           for filename in ('coco_annotations.json','boxes.json','points.json'):
               data=json.loads((source/filename).read_text('utf-8'))
               assert all(isinstance(data[key],list) for key in ('images','annotations','categories'))
-          runtime=json.loads((root/'assets/coco_annotations.json').read_text('utf-8'))
-          legacy=json.loads((root/'assets/coco_detection.json').read_text('utf-8'))
-          assert runtime == legacy, 'Runtime COCO changed during layout migration'
-          work=json.loads((source/'coco_annotations.json').read_text('utf-8'))
-          assert {i['name'] for i in work['categories']} == {i['name'] for i in runtime['categories']}
-          label=lambda data: {a['category_id']:tuple(a['bbox']) for a in data['annotations']}
-          assert label(work)==label(runtime), 'Template bounding boxes changed'
-          for entry in work['images']:
-              assert (source/entry['file_name']).is_file()
           assert not (root/'x-anylabeling-asset').exists()
-          print('Gitlink, Toolkit contracts and five template boxes verified:',pin)
+          print('Gitlink and Toolkit configuration verified:',pin)
           PY
+      - name: Verify authoring metadata and published runtime pixels
+        run: python3 scripts/verify_templates.py

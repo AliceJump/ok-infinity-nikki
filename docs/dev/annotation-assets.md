@@ -18,12 +18,14 @@ Open the parent project in VS Code or JetBrains and install ok-script Toolkit. I
 - `labelEnum.path = "src/data/FeatureList"`, `name = "FeatureList"`: existing imports stay valid
 - `templates.cocoAnnotations = "assets/coco_annotations.json"`: the actual **runtime** library
 
-The working files are `ok_templates/coco_annotations.json` (Template), `ok_templates/boxes.json` (Rect) and `ok_templates/points.json` (Point). The Rect and Point files initially contain empty COCO tables.
+The working files are `ok_templates/coco_annotations.json` (Template), `ok_templates/boxes.json` (Rect) and `ok_templates/points.json` (Point). The Rect and Point files initially contain empty COCO tables. The two `screenshot_20261026_*.png` files are real 3392×2400 choice scenes; `184825` supplies the history icon and W/S template, and `184802` supplies a second background for replay validation. Keep one annotation per category to satisfy the runtime loader.
 
 ## Publishing
 
 Toolkit's **save annotation** updates source files in the `ok_templates` submodule only. Explicitly use Toolkit's **Publish** action to regenerate `assets/coco_annotations.json`, `assets/images/` and, when selected, `src/data/FeatureList.py`. Before committing, check the published output, code references and feature tests. Publishing Position is separate and requires a runtime loader before any `self.pos` references can be used; the plugin alone does not enable it in the game.
 
-The original application used `assets/coco_detection.json`. This PR adds a byte-identical `assets/coco_annotations.json`, updates the runtime path and **retains the old file as a compatibility archive**. The existing 5 template categories and boxes are unchanged; the source submodule has converted, deduplicated working COCO metadata.
+The original application used `assets/coco_detection.json`, retained as a historical archive. The active library is `assets/coco_annotations.json`; its history icon and W/S choice template now come from the native-resolution screenshot. Ordinary dialogue F, B, and task-marker templates retain their original crops: the new screenshots do not show the latter two, and the F beside a choice must not take priority over choice scrolling. The five feature names stay unchanged. Matching uses each annotation's own anchored coordinates instead of the old 1920×1080 search box.
+
+Run `uv run --locked python scripts/verify_templates.py` to check IDs, dimensions, bounds, and exact source/runtime crop equality. `uv run --locked python -m unittest discover -s tests -p 'TestProjectTemplates.py' -v` replays both screenshots at all seven configured sizes using the installed matcher at threshold 0.9, and checks task actions with game input mocked. These are resized screenshot checks; other dialogue states and live rendering still require game validation.
 
 The original X-AnyLabeling PNG/JSON work (16 files, 53.7 MB) is preserved in the **asset repository's Git history** (commit `592f0adf22abf7509ea88670a6a51b00d7f17a92`) and no longer appears in the parent working tree. New screenshots and edits should use Toolkit, not the old conversion script.

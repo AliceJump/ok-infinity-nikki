@@ -8,13 +8,13 @@ class AutoSkipDialogTask(BaseINTask):
         self.description = "这是一个自动跳过对话的任务"
 
     def run(self):
-        dialog_box=self.box_of_screen(1460/1920, 1000/1080,1810/1920,1040/1080)
         scroll_bool=False
         while True:
             if self.find_one(fL.dialog_icon, threshold=0.9):
-                if self.find_one(fL.skip_f,threshold=0.9, box=dialog_box):
+                # 使用各模板自己的缩放坐标；固定 16:9 搜索框会漏掉 3392×2400 的选项提示。
+                if self.find_one(fL.skip_f,threshold=0.9):
                     self.send_key("f", after_sleep=0.1)
-                if self.find_one(fL.skip_choose, threshold=0.9,box=dialog_box):
+                if self.find_one(fL.skip_choose, threshold=0.9):
                     if not scroll_bool:
                         self.scroll_relative(0.5,0.5,-1)
                         scroll_bool=True
