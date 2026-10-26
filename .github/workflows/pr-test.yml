@@ -13,6 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha }}
           lfs: true
           submodules: recursive
