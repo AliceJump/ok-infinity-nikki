@@ -1,0 +1,42 @@
+name: PR Test
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+          lfs: true
+          submodules: recursive
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install pinned uv
+        run: python -m pip install uv==0.10.9
+      - name: Verify lock and release requirements
+        shell: pwsh
+        run: |
+          uv lock --check
+          if ($LASTEXITCODE -ne 0) { throw "uv.lock stale or missing" }
+          uv export --locked --no-dev --no-emit-project --no-hashes --no-annotate --output-file requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw "uv export failed" }
+          git diff --exit-code -- requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw "Generated requirements.txt has changed" }
+      - name: Install dependencies and test
+        shell: pwsh
+        run: |
+          uv sync --locked
+          if ($LASTEXITCODE -ne 0) { throw "uv sync failed" }
+          uv run --locked python -m compileall -q src main.py main_debug.py
+          if ($LASTEXITCODE -ne 0) { throw "Python compile failed" }
+          uv run --locked python -m unittest discover -s tests -p "TestProject*.py" -v
+          if ($LASTEXITCODE -ne 0) { throw "Project tests failed" }
