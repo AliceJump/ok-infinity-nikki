@@ -1,0 +1,35 @@
+name: Annotation submodule test
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".gitmodules"
+      - "x-anylabeling-asset"
+      - ".github/workflows/submodule-test.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          fetch-depth: 1
+      - name: Verify the asset submodule and all source files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git submodule status -- x-anylabeling-asset
+          committed_sha="$(git rev-parse HEAD:x-anylabeling-asset)"
+          checked_out_sha="$(git -C x-anylabeling-asset rev-parse HEAD)"
+          test "$committed_sha" = "$checked_out_sha"
+          test -f x-anylabeling-asset/README.md
+          test -f x-anylabeling-asset/compress.py
+          test -f x-anylabeling-asset/project_dir/.xanylabelingrc
+          test -f x-anylabeling-asset/project_dir/classes.txt
+          test "$(git -C x-anylabeling-asset ls-tree -r --name-only HEAD | wc -l)" -ge 16
+          echo "Submodule SHA verified: $checked_out_sha"
