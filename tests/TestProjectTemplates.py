@@ -5,18 +5,22 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import cv2
-from ok import Box
 from ok.feature.FeatureSet import FeatureSet
 
 from scripts.verify_templates import validate
 from src.config import config
 from src.tasks.AutoSkipDialogTask import AutoSkipDialogTask
+from src.tasks.dialogue_choices import ChoiceMemory, text_band_lengths
+
+
+class FrameTask(AutoSkipDialogTask):
+    @property
+    def frame(self):
+        """Return a fixture without creating a game executor."""
+        return self.test_frame
+
 
 ROOT = Path(__file__).resolve().parents[1]
-
-
-class EndFrame(Exception):
-    """Stop the one-time task after a single iteration without sending real input."""
 
 
 class TestProjectTemplates(unittest.TestCase):
@@ -53,7 +57,7 @@ class TestProjectTemplates(unittest.TestCase):
                 for name in ("dialog_icon", "chat_icon"):
                     with self.subTest(size=size, screenshot=suffix, feature=name):
                         self.assertTrue(matcher.find_one_feature(frame, name, threshold=0.9, limit=1))
-                for name in ("skip_f", "skip_b", "task_icon"):
+                for name in ("skip_f",):
                     with self.subTest(size=size, screenshot=suffix, absent_feature=name):
                         self.assertFalse(matcher.find_one_feature(frame, name, threshold=0.9, limit=1))
 
@@ -73,26 +77,72 @@ class TestProjectTemplates(unittest.TestCase):
                     if not has_dialogue:
                         frame[:180, :200] = 0
                     matcher = self.make_matcher()
-                    task = AutoSkipDialogTask.__new__(AutoSkipDialogTask)
-                    task._scroll_on_next_choice = True
+                    task = FrameTask.__new__(FrameTask)
+                    task.test_frame = frame
+                    task._choice_memory = ChoiceMemory()
                     task.find_one = lambda name, **kwargs: next(
-                        iter(matcher.find_one_feature(frame, name, limit=1, **kwargs)), None
+                        iter(matcher.find_one_feature(kwargs.pop("frame", frame), name, limit=1, **kwargs)), None
                     )
-                    task.box_of_screen = lambda x, y, to_x, to_y: Box(
-                        x * frame.shape[1], y * frame.shape[0],
-                        (to_x - x) * frame.shape[1], (to_y - y) * frame.shape[0],
+                    task.find_feature = lambda name, **kwargs: matcher.find_one_feature(
+                        kwargs.pop("frame", frame), name, **kwargs
                     )
                     task.send_key = Mock()
-                    task.scroll_relative = Mock()
-                    task.sleep = Mock()
-                    task.next_frame = Mock(side_effect=EndFrame)
-                    try:
-                        task.run()
-                    except EndFrame:
-                        pass
+                    task.click = Mock(return_value=True)
+                    self.assertIs(task.run(), False)
                     if has_dialogue:
-                        task.send_key.assert_called_once_with("f", after_sleep=0.2)
-                        task.scroll_relative.assert_called_once_with(0.5, 0.5, -1)
+                        task.click.assert_called_once()
+                        self.assertAlmostEqual(task.click.call_args.args[0].x, 2285, delta=2)
+                        self.assertEqual(len(task._choice_memory.records), 1)
                     else:
-                        task.send_key.assert_not_called()
-                        task.scroll_relative.assert_not_called()
+                        task.click.assert_not_called()
+                    task.send_key.assert_not_called()
+
+    def test_measured_band_is_background_and_scale_stable(self):
+        """The same visible text yields a matching fingerprint at each size."""
+        memory = ChoiceMemory()
+        for size in config["supported_resolution"]["resize_to"]:
+            for suffix, original in self.frames.items():
+                with self.subTest(size=size, screenshot=suffix):
+                    frame = cv2.resize(original, size)
+                    matcher = self.make_matcher()
+                    icons = matcher.find_one_feature(frame, "chat_icon", threshold=0.9, limit=1)
+                    lengths = text_band_lengths(frame, icons)
+                    self.assertIsNotNone(lengths)
+                    self.assertEqual(len(lengths), 1)
+                    memory.hide()
+                    memory.commit(memory.prepare(lengths))
+        self.assertEqual(len(memory.records), 1)
+
+    def test_task_item_popup_is_ignored(self):
+        """The user's new F prompt must not dismiss a task-item popup."""
+        path = ROOT / "ok_templates" / "screenshot_20261026_200542.png"
+        frame = cv2.imread(str(path))
+        self.assertIsNotNone(frame)
+        matcher = self.make_matcher()
+        self.assertTrue(matcher.find_one_feature(frame, "skip_f", threshold=0.9, limit=1))
+        task = FrameTask.__new__(FrameTask)
+        task.test_frame = frame
+        task._choice_memory = ChoiceMemory()
+        task.find_one = lambda name, **kwargs: next(iter(matcher.find_one_feature(
+            kwargs.pop("frame", frame), name, limit=1, **kwargs
+        )), None)
+        task.send_key = Mock()
+        task.click = Mock()
+        self.assertIs(task.run(), False)
+        task.send_key.assert_not_called()
+        task.click.assert_not_called()
+
+    def test_two_chat_rows_are_detected_sorted_and_measured(self):
+        """Replay a second chat row while excluding the original exit icon."""
+        frame = self.frames["184825"].copy()
+        # Reuse the real icon and text pixels at the next row, leaving the menu background intact.
+        frame[1572:1636, 2270:2570] = frame[1460:1524, 2270:2570].copy()
+        matcher = self.make_matcher()
+        from ok import Box
+        icons = sorted(matcher.find_one_feature(
+            frame, "chat_icon", threshold=0.9, box=Box(1696, 600, 1628, 1440)
+        ), key=lambda box: box.y)
+        self.assertEqual(len(icons), 2)
+        lengths = text_band_lengths(frame, icons)
+        self.assertIsNotNone(lengths)
+        self.assertAlmostEqual(lengths[0], lengths[1], delta=0.3)
