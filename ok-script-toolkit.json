@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/AliceJump/ok-script-toolkit/main/schemas/ok-script-toolkit.schema.json",
+  "labelEnum": {
+    "path": "src/data/FeatureList",
+    "name": "FeatureList",
+    "aliases": [
+      "FeatureList",
+      "fL"
+    ]
+  },
+  "templates": {
+    "directory": "ok_templates",
+    "cocoAnnotations": "assets/coco_annotations.json"
+  }
+}
