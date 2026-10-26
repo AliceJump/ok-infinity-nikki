@@ -2,148 +2,94 @@ name: Build
 
 on:
   push:
-    # Sequence of patterns matched against refs/tags
     tags:
       - 'v*'
+
+permissions:
+  contents: read
 
 jobs:
   test:
     runs-on: windows-latest
-    permissions:
-      contents: read
-
-    env:
-      PYTHONIOENCODING: 'UTF-8'
-
-    strategy:
-      matrix:
-        python-version: [ 3.12 ]
-
     steps:
-      - name: Configure git
-        run: |
-          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-          git config --global core.autocrlf false
-          git config --global core.eol lf
-          git config --global user.email "ok-oldking@users.noreply.github.com"
-          git config --global user.name "ok-oldking"
-          echo "action_state=yellow" >> $env:GITHUB_ENV
-          echo "${{ env.action_state }}"
-
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
+          persist-credentials: false
           lfs: true
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+          submodules: recursive
+      - uses: actions/setup-python@v6
         with:
-          python-version: ${{ matrix.python-version }}
-      - name: Set UTF-8 encoding
+          python-version: '3.12'
+      - name: Install pinned uv
+        run: python -m pip install uv==0.10.9
+      - name: Verify locked release dependencies
+        shell: pwsh
         run: |
-          set PYTHONIOENCODING=utf-8
-          set PYTHONLEGACYWINDOWSSTDIO=utf-8
-          echo PYTHONIOENCODING=utf-8 >> $GITHUB_ENV
-
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-          pip install polib
-
-      - name: inline_ok_requirements #把ok-script加入源码, 从requirements.txt中删除以提高升级更新速度
-        run: |
-          python -m ok.update.inline_ok_requirements --tag ${{ github.ref_name }}
-
-      - name: Run tests
-        timeout-minutes: 5
-        run: |
-          Get-ChildItem -Path ".\tests\*.py" | Where-Object { $_.Name -ne "TestMain.py" } | ForEach-Object {
-              Write-Host "Running tests in $($_.FullName)"
-              python -m unittest $_.FullName
-          }
+          uv lock --check
+          if ($LASTEXITCODE -ne 0) { throw "uv lock mismatch" }
+          uv export --locked --no-dev --no-emit-project --no-hashes --no-annotate --output-file requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw "uv export failed" }
+          git diff --exit-code -- requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw "Release requirements are stale" }
+          uv sync --locked
+          if ($LASTEXITCODE -ne 0) { throw "uv sync failed" }
+          uv run --locked python -m compileall -q src main.py main_debug.py
+          if ($LASTEXITCODE -ne 0) { throw "Python compile failed" }
+          uv run --locked python -m unittest discover -s tests -p "TestProject*.py" -v
+          if ($LASTEXITCODE -ne 0) { throw "Project tests failed" }
 
   build:
     needs: test
     runs-on: windows-latest
-    permissions:
-      contents: read
-
-    env:
-      PYTHONIOENCODING: 'UTF-8'
-
-    strategy:
-      matrix:
-        python-version: [ 3.12 ]
-
     steps:
-      - name: Configure git
-        run: |
-          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-          git config --global core.autocrlf false
-          git config --global core.eol lf
-          git config --global user.email "ok-oldking@users.noreply.github.com"
-          git config --global user.name "ok-oldking"
-          echo "action_state=yellow" >> $env:GITHUB_ENV
-          echo "${{ env.action_state }}"
-
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
+          persist-credentials: false
           lfs: true
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+          submodules: recursive
+      - uses: actions/setup-python@v6
         with:
-          python-version: ${{ matrix.python-version }}
-      - name: Set UTF-8 encoding
-        run: |
-          set PYTHONIOENCODING=utf-8
-          set PYTHONLEGACYWINDOWSSTDIO=utf-8
-          echo PYTHONIOENCODING=utf-8 >> $GITHUB_ENV
-
+          python-version: '3.12'
+      - name: Install pinned uv
+        run: python -m pip install uv==0.10.9
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
-          pip install polib
-
-      - name: inline_ok_requirements #把ok-script加入源码, 从requirements.txt中删除以提高升级更新速度
-        run: |
-          python -m ok.update.inline_ok_requirements --tag ${{ github.ref_name }}
-
-      - name: Build with PyAppify Action
-        id: build-app
-        uses: ok-oldking/pyappify-action@master #使用pyappify打包exe
-
-      - name: Add version to build filenames
+          uv sync --locked
+      - name: Inline ok-script for release updater
         shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          $version = "${{ github.ref_name }}"
+          uv run --locked python -m ok.update.inline_ok_requirements --tag "$env:RELEASE_TAG"
+          if ($LASTEXITCODE -ne 0) { throw "Inlining ok-script failed" }
+      - name: Build with PyAppify Action
+        uses: ok-oldking/pyappify-action@master
+      - name: Append version to filenames
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
           Get-ChildItem -Path pyappify_dist -File | ForEach-Object {
-            Rename-Item -LiteralPath $_.FullName -NewName "$($_.BaseName)-$version$($_.Extension)"
+            Rename-Item -LiteralPath $_.FullName -NewName "$($_.BaseName)-$env:RELEASE_TAG$($_.Extension)"
           }
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
-          name: pyappify_dist-${{ github.ref_name }}
+          name: pyappify_dist
           path: pyappify_dist/*
 
   release:
     needs: build
     runs-on: windows-latest
-    if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
     steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v6
         with:
-          name: pyappify_dist-${{ github.ref_name }}
+          name: pyappify_dist
           path: pyappify_dist
-
-      - name: Release
-        uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v2
         with:
-          token: ${{ secrets.OK_GH }}
           draft: false
           body: |
-            ### 下载Release-setup.exe, 下载后可应用内更新
+            Download the Release setup.exe for installation and in-app updates.
           files: pyappify_dist/**
