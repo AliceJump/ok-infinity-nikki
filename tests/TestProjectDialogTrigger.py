@@ -240,7 +240,8 @@ class TestProjectDialogTrigger(unittest.TestCase):
         def replace_menu(key, **kwargs):
             if key == "w":
                 self.focus = 0
-                self.options[0].y += 20
+                row = self.options[0]
+                self.options[0] = Box(row.x, row.y + 20, row.width, row.height)
             return True
 
         self.task.send_key.side_effect = replace_menu
