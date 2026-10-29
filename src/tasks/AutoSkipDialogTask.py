@@ -1,4 +1,4 @@
-"""剧情跳过：选项菜单按默认首项选中，用 S 导航、F 确认。"""
+"""剧情跳过：跳过暗色已选选项，用 W/S 调整焦点后 F 确认。"""
 
 from dataclasses import dataclass
 
@@ -6,7 +6,10 @@ from ok import Box, TriggerTask
 
 from src.data.FeatureList import FeatureList as fL
 from src.tasks.BaseINTask import BaseINTask
-from src.tasks.dialogue_choices import ChoiceDecision, ChoiceMemory, text_band_lengths
+from src.tasks.dialogue_choices import (
+    ChoiceDecision, ChoiceMemory, dimmed_text_rows, highlighted_choice_index,
+    text_band_lengths,
+)
 
 
 @dataclass
@@ -14,7 +17,7 @@ class ChoiceAttempt:
     """Track one visible menu across trigger ticks; never retry a failed attempt."""
 
     decision: ChoiceDecision
-    sent_s: int = 0
+    moves: int = 0
     phase: str = "navigate"
     checks: int = 0
     absent_frames: int = 0
@@ -38,22 +41,40 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
                 and bool(self.find_one(fL.dialog_icon, threshold=0.9, frame=frame))
                 and bool(self.find_one(fL.skip_choose, threshold=0.9, frame=frame)))
 
-    def _menu_lengths(self, frame):
+    def _menu_state(self, frame):
+        """Read text fingerprint, visited status, and highlighted row."""
         height, width = frame.shape[:2]
         icons = sorted(self.find_feature(
             fL.chat_icon, threshold=0.9, frame=frame,
             box=Box(width * 0.5, height * 0.25, width * 0.48, height * 0.6),
         ), key=lambda box: (box.y, box.x))
-        return text_band_lengths(frame, icons) if icons else None
+        if not icons:
+            return None
+        lengths = text_band_lengths(frame, icons)
+        dimmed = dimmed_text_rows(frame, icons)
+        if lengths is None or dimmed is None or len(dimmed) != len(lengths):
+            return None
+        return lengths, dimmed, highlighted_choice_index(frame, icons)
 
     @staticmethod
     def _same_lengths(expected, actual):
+        """Tolerate small antialiasing or highlighting differences."""
         return (actual is not None and len(expected) == len(actual)
                 and all(abs(a - b) <= max(0.3, 0.05 * max(a, b))
                         for a, b in zip(expected, actual)))
 
+    @staticmethod
+    def _choose_unvisited(decision, dimmed):
+        """Choose a bright row starting from the remembered menu index."""
+        for offset in range(len(dimmed)):
+            index = (decision.index + offset) % len(dimmed)
+            if not dimmed[index]:
+                decision.index = index
+                return True
+        return False
+
     def _stop_choice(self, reason, frame=None):
-        """Fail closed until the current menu has really disappeared."""
+        """Block this menu when a key or its visual effect is uncertain."""
         self._choice_attempt.phase = "blocked"
         self._choice_attempt.absent_frames = 0
         self.log_warning(f"剧情选项输入已停止：{reason}；等待当前菜单消失后才可重试")
@@ -77,6 +98,7 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
             self._choice_attempt = None
 
     def _run_choice(self, frame):
+        """Validate each W/S movement against the actual highlighted row."""
         attempt = self._choice_attempt
         if attempt.phase == "blocked":
             if self._menu_visible(frame):
@@ -90,61 +112,73 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
         if attempt.phase == "confirm":
             self._observe_confirmation(frame)
             return
-
-        if not self._menu_visible(frame) or not self._same_lengths(
-                attempt.decision.lengths, self._menu_lengths(frame)):
-            self._stop_choice("导航过程中菜单消失或选项内容变化", frame)
+        if not self._menu_visible(frame):
+            self._stop_choice("导航过程中菜单消失", frame)
             return
-
-        if attempt.sent_s < attempt.decision.index:
-            key = "s"
-            step = attempt.sent_s + 1
-        else:
-            key = "f"
-            step = attempt.sent_s
+        state = self._menu_state(frame)
+        if state is None or not self._same_lengths(attempt.decision.lengths, state[0]):
+            self._stop_choice("导航过程中选项内容无法确认", frame)
+            return
+        lengths, dimmed, focus = state
+        target = attempt.decision.index
+        if dimmed[target]:
+            self._stop_choice("目标选项已经变暗，禁止继续选择", frame)
+            return
+        if focus is None:
+            # Fall back to first-item assumption only before moving focus.
+            if attempt.moves:
+                self._stop_choice("无法确认 W/S 后的当前高亮行", frame)
+                return
+            focus = 0
+        key = "s" if focus < target else "w" if focus > target else "f"
+        step = attempt.moves
         self.screenshot(name=f"dialog_ws_before_{key}_{step}", frame=frame)
         if self.send_key(key, down_time=0.08, after_sleep=0.12) is False:
             self._stop_choice(f"发送 {key.upper()} 失败", frame)
             return
-
-        # Capture after *every* key, and validate again on the next trigger tick.
         updated = self.next_frame()
         if updated is None:
             self._stop_choice(f"发送 {key.upper()} 后未获取到新截图")
             return
         self.screenshot(name=f"dialog_ws_after_{key}_{step}", frame=updated)
-        if key == "s":
-            if not self._menu_visible(updated) or not self._same_lengths(
-                    attempt.decision.lengths, self._menu_lengths(updated)):
-                self._stop_choice("按下 S 后菜单消失或选项内容变化", updated)
-                return
-            attempt.sent_s += 1
-        else:
+        if key == "f":
             attempt.phase = "confirm"
             self._observe_confirmation(updated)
+            return
+        if not self._menu_visible(updated):
+            self._stop_choice(f"按下 {key.upper()} 后菜单消失", updated)
+            return
+        next_state = self._menu_state(updated)
+        expected_focus = focus + (1 if key == "s" else -1)
+        if (next_state is None
+                or not self._same_lengths(lengths, next_state[0])
+                or next_state[2] != expected_focus):
+            self._stop_choice(f"按下 {key.upper()} 后高亮行未移动到 {expected_focus + 1}", updated)
+            return
+        attempt.moves += 1
 
     def run(self):
-        """Send at most one W/S/F input per trigger tick; never click choice icons."""
+        """Choose bright unvisited options, at most one input per trigger."""
         frame = self.frame
         if frame is None:
             if self._choice_attempt is not None and self._choice_attempt.phase != "blocked":
                 self._stop_choice("无法获取当前截图")
             return False
-
         if self._choice_attempt is not None:
             self._run_choice(frame)
             return False
-
         if self._menu_visible(frame):
-            lengths = self._menu_lengths(frame)
-            if lengths is not None:
+            state = self._menu_state(frame)
+            if state is not None:
+                lengths, dimmed, focus = state
                 decision = self._choice_memory.prepare(lengths)
                 if decision is not None:
-                    # On *each fresh menu*, assume keyboard focus starts on option 0.
                     self._choice_attempt = ChoiceAttempt(decision)
-                    self._run_choice(frame)
+                    if self._choose_unvisited(decision, dimmed):
+                        self._run_choice(frame)
+                    else:
+                        self._stop_choice("所有对话选项文字都已变暗", frame)
             return False
-
         self._choice_memory.hide()
         if self.find_one(fL.dialog_icon, threshold=0.9, frame=frame):
             if self.find_one(fL.skip_f, threshold=0.9, frame=frame):
