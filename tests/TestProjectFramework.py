@@ -14,7 +14,7 @@ class TestProjectFramework(unittest.TestCase):
         from ok.core.ui_config import resolve_ui_config
         from src.config import config
 
-        self.assertEqual(version("ok-script"), "2.0.14")
+        self.assertEqual(version("ok-script"), "2.0.17")
         self.assertTrue(callable(OK))
         self.assertTrue(callable(ConfigOption))
         gui = resolve_ui_config(config)

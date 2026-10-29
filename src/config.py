@@ -6,12 +6,16 @@ from ok import ConfigOption
 version = "dev"
 # 不需要修改version, Github Action打包会自动修改
 
-key_config_option = ConfigOption('Game Hotkey Config', { #全局配置示例
-    'Echo Key': 'q',
-    'Liberation Key': 'r',
-    'Resonance Key': 'e',
-    'Tool Key': 't',
-}, description='In Game Hotkey for Skills')
+key_config_option = ConfigOption(
+    "Game Hotkey Config",
+    {  # 全局配置示例
+        "Echo Key": "q",
+        "Liberation Key": "r",
+        "Resonance Key": "e",
+        "Tool Key": "t",
+    },
+    description="In Game Hotkey for Skills",
+)
 
 
 import numpy as np
@@ -33,7 +37,9 @@ def make_bottom_left_black(frame):
         start_y = height - black_height
 
         # Create black rectangle
-        black_rect = np.zeros((black_height, black_width, frame.shape[2]), dtype=frame.dtype)
+        black_rect = np.zeros(
+            (black_height, black_width, frame.shape[2]), dtype=frame.dtype
+        )
 
         # Replace bottom-left portion
         frame[start_y:height, start_x : start_x + black_width] = black_rect
@@ -68,18 +74,22 @@ config = {
         "require_bg": True,  # 要求使用后台截图
     },
     "start_timeout": 120,  # default 60
-    "window_size": {"width": 1200, "height": 800, "min_width": 600, "min_height": 450},  # ok-script窗口大小
+    "window_size": {
+        "width": 1200,
+        "height": 800,
+        "min_width": 600,
+        "min_height": 450,
+    },  # ok-script窗口大小
     "supported_resolution": {
-        "ratio": "3392:2400",  # 无限暖暖目标画面的宽高比（106:75）
-        "min_size": (1280, 900),  # 最低支持的画面尺寸
-        "resize_to": [  # 自动调整窗口的优先级，从高到低；均为目标比例的近似偶数尺寸
-            (3392, 2400),
-            (2560, 1812),
-            (2048, 1450),
-            (1920, 1360),
-            (1600, 1132),
-            (1440, 1020),
-            (1280, 906),
+        "ratio": "16:9",  # 标准宽屏比例
+        "min_size": (1280, 720),  # 最低支持 720p
+        "resize_to": [  # 自动调整窗口的优先级，从高到低
+            (3840, 2160),  # 4K
+            (2560, 1440),  # 2K
+            (1920, 1080),  # 1080p
+            (1600, 900),
+            (1366, 768),  # 近似 16:9
+            (1280, 720),  # 720p
         ],
     },
     "links": {  # 关于里显示的链接, 可选
@@ -100,7 +110,10 @@ config = {
         "default_threshold": 0.8,  # 默认threshold
     },
     "version": version,  # 版本
-    "my_app": ["src.globals", "Globals"],  # 可选. 全局单例对象, 可以存放加载的模型, 使用og.my_app调用
+    "my_app": [
+        "src.globals",
+        "Globals",
+    ],  # 可选. 全局单例对象, 可以存放加载的模型, 使用og.my_app调用
     "onetime_tasks": [  # 用户点击触发的任务
         ["src.tasks.MyOneTimeTask", "MyOneTimeTask"],
         # ["src.tasks.MyOneTimeWithAGroup", "MyOneTimeWithAGroup"],
