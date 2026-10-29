@@ -29,6 +29,19 @@
     },
     {
       "id": 2,
+      "image_id": 1,
+      "category_id": 9,
+      "bbox": [
+        1818,
+        37,
+        31,
+        38
+      ],
+      "area": 1178,
+      "iscrowd": 0
+    },
+    {
+      "id": 3,
       "image_id": 2,
       "category_id": 1,
       "bbox": [
@@ -41,7 +54,7 @@
       "iscrowd": 0
     },
     {
-      "id": 3,
+      "id": 4,
       "image_id": 2,
       "category_id": 6,
       "bbox": [
@@ -54,7 +67,7 @@
       "iscrowd": 0
     },
     {
-      "id": 4,
+      "id": 5,
       "image_id": 2,
       "category_id": 3,
       "bbox": [
@@ -86,6 +99,11 @@
     {
       "id": 3,
       "name": "skip_choose",
+      "supercategory": ""
+    },
+    {
+      "id": 9,
+      "name": "Y_N_left",
       "supercategory": ""
     }
   ]

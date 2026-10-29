@@ -44,7 +44,9 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
         """Require both dialogue and navigation hints for a choice menu."""
         return (frame is not None
                 and bool(self.find_one(fL.dialog_icon, threshold=0.9, frame=frame))
-                and bool(self.find_one(fL.skip_choose, threshold=0.9, frame=frame)))
+                and bool(self.find_one(fL.Y_N_left, threshold=0.9, frame=frame))
+                and bool(self.find_one(fL.skip_choose, threshold=0.9, frame=frame, box=self.box_of_screen(0.792, 0.927, 0.893, 0.962)))
+                )
 
     def _menu_state(self, frame):
         """Read text fingerprint, visited status, and highlighted row."""
