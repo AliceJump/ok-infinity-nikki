@@ -1,6 +1,8 @@
 """剧情跳过：跳过暗色已选选项，用 W/S 调整焦点后 F 确认。"""
 
 from dataclasses import dataclass
+import json
+import time
 
 from ok import Box, TriggerTask
 
@@ -31,6 +33,7 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
     CONFIRM_CHECKS = 5
     ABSENT_FRAMES = 2
     MOVE_CONFIRM_CHECKS = 3
+    MATCH_LOG_INTERVAL = 5.0
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -39,20 +42,119 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
         self.trigger_interval = 0.3
         self._choice_memory = ChoiceMemory()
         self._choice_attempt = None
+        self._match_last_signature = None
+        self._match_last_time = 0.0
+
+    @staticmethod
+    def _normalized_box(box, width, height):
+        """Normalized top-left geometry; preserve width/height independently."""
+        if box is None:
+            return None
+        return {
+            "x": round(float(box.x) / width, 5),
+            "y": round(float(box.y) / height, 5),
+            "w": round(float(box.width) / width, 5),
+            "h": round(float(box.height) / height, 5),
+        }
+
+    def _observed_find(self, feature, frame, *, box=None, all_matches=False):
+        """Reuse the existing matcher, recording every result it actually returns.
+
+        Single-hit guards keep the cheaper find_one(limit=1); option rows use
+        find_feature(limit=0) and preserve all boxes. Cache repeated searches
+        on the same screenshot inside a trigger tick to avoid extra OpenCV work.
+        """
+        name = feature.value if hasattr(feature, "value") else str(feature)
+        height, width = frame.shape[:2]
+        roi = self._normalized_box(box, width, height)
+        cache = getattr(self, "_match_cache", None)
+        key = (id(frame), name, all_matches, tuple(roi.values()) if roi else None)
+        if cache is not None and key in cache:
+            return cache[key]
+        start = time.perf_counter()
+        if all_matches:
+            result = self.find_feature(feature, threshold=0.9, frame=frame, box=box)
+            matches = list(result)
+        else:
+            result = self.find_one(feature, threshold=0.9, frame=frame, **({"box": box} if box is not None else {}))
+            matches = [result] if result else []
+        elapsed = round((time.perf_counter() - start) * 1000, 3)
+        entry = {
+            "template": name,
+            "mode": "explicit_roi" if roi else "feature_anchor",
+            "roi": roi,
+            "threshold": 0.9,
+            "limit": "all" if all_matches else 1,
+            "count": len(matches),
+            "ms": elapsed,
+            "hits": [],
+        }
+        for candidate in matches:
+            # Some isolated tests stub find_one with bool; production returns Box.
+            if not hasattr(candidate, "x"):
+                continue
+            item = self._normalized_box(candidate, width, height)
+            item["confidence"] = round(float(getattr(candidate, "confidence", 0) or 0), 4)
+            item["name"] = str(getattr(candidate, "name", None) or name)
+            entry["hits"].append(item)
+        scans = getattr(self, "_match_scans", None)
+        if scans is not None:
+            scans.append(entry)
+            self._match_frame_size = (width, height)
+        if cache is not None:
+            cache[key] = result
+        return result
+
+    def _emit_match_log(self):
+        """One machine-readable snapshot on changes and every 5s otherwise."""
+        scans = getattr(self, "_match_scans", [])
+        if not scans:
+            return
+        details = getattr(self, "_match_details", [])
+        phase = getattr(getattr(self, "_choice_attempt", None), "phase", "idle")
+        # Ignore unstable confidence/elapsed time when detecting state changes.
+        signature = (
+            phase,
+            tuple((entry["template"], entry["count"],
+                   tuple((round(hit["x"], 3), round(hit["y"], 3),
+                          round(hit["w"], 3), round(hit["h"], 3))
+                         for hit in entry["hits"])) for entry in scans),
+            tuple((detail["focus"], tuple(detail["dimmed"]))
+                  for detail in details),
+        )
+        now = time.monotonic()
+        previous = getattr(self, "_match_last_signature", None)
+        last_at = getattr(self, "_match_last_time", 0.0)
+        if (signature == previous and now - last_at < self.MATCH_LOG_INTERVAL
+                and not getattr(self, "_match_force", False)):
+            return
+        data = {
+            "event": "dialogue_match",
+            "frame": getattr(self, "_match_frame_size", None),
+            "phase": phase,
+            "scans": scans,
+            "choices": details,
+            "input": getattr(self, "_match_action", None),
+            "total_match_ms": round(sum(entry["ms"] for entry in scans), 3),
+        }
+        self.log_info("DIALOG_MATCH " + json.dumps(data, ensure_ascii=False, separators=(",", ":")))
+        self._match_last_signature = signature
+        self._match_last_time = now
 
     def _menu_visible(self, frame):
         """Require both dialogue and navigation hints for a choice menu."""
         return (frame is not None
-                and bool(self.find_one(fL.dialog_icon, threshold=0.9, frame=frame))
-                and bool(self.find_one(fL.Y_N_left, threshold=0.9, frame=frame))
-                and bool(self.find_one(fL.skip_choose, threshold=0.9, frame=frame, box=self.box_of_screen(0.792, 0.927, 0.893, 0.962)))
-                )
+                and bool(self._observed_find(fL.dialog_icon, frame))
+                and bool(self._observed_find(fL.Y_N_left, frame))
+                and bool(self._observed_find(
+                    fL.skip_choose, frame,
+                    box=self.box_of_screen(0.792, 0.927, 0.893, 0.962))))
 
     def _menu_state(self, frame):
         """Read text fingerprint, visited status, and highlighted row."""
         height, width = frame.shape[:2]
-        icons = sorted(self.find_feature(
-            fL.chat_icon, threshold=0.9, frame=frame,
+        icons = sorted(self._observed_find(
+            fL.chat_icon, frame=frame, all_matches=True,
             box=Box(width * 0.5, height * 0.25, width * 0.48, height * 0.6),
         ), key=lambda box: (box.y, box.x))
         if not icons:
@@ -61,7 +163,15 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
         dimmed = dimmed_text_rows(frame, icons)
         if lengths is None or dimmed is None or len(dimmed) != len(lengths):
             return None
-        return (lengths, dimmed, highlighted_choice_index(frame, icons),
+        focus = highlighted_choice_index(frame, icons)
+        if hasattr(self, "_match_details"):
+            self._match_details.append({
+                "focus": focus,
+                "dimmed": list(dimmed),
+                "text_width_units": [round(value, 3) for value in lengths],
+                "row_y": [round((icon.y + icon.height / 2) / height, 5) for icon in icons],
+            })
+        return (lengths, dimmed, focus,
                 tuple((icon.y + icon.height / 2) / height for icon in icons))
 
     @staticmethod
@@ -101,6 +211,7 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
         """Block this menu when a key or its visual effect is uncertain."""
         self._choice_attempt.phase = "blocked"
         self._choice_attempt.absent_frames = 0
+        self._match_force = True
         self.log_warning(f"剧情选项输入已停止：{reason}；等待当前菜单消失后才可重试")
         if frame is not None:
             self.screenshot(name="dialog_ws_failed", frame=frame)
@@ -202,6 +313,8 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
             self._stop_choice(f"发送 {key.upper()} 后未获取到新截图")
             return
         self.screenshot(name=f"dialog_ws_after_{key}_{step}", frame=updated)
+        self._match_action = {"key": key, "step": step}
+        self._match_force = True
         if key == "f":
             attempt.phase = "confirm"
             self._observe_confirmation(updated)
@@ -213,7 +326,7 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
         attempt.phase = "verify_move"
         self._verify_navigation(updated)
 
-    def run(self):
+    def _run_cycle(self):
         """Choose bright unvisited options, at most one input per trigger."""
         frame = self.frame
         if frame is None:
@@ -236,7 +349,22 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
                         self._stop_choice("所有对话选项文字都已变暗", frame)
             return False
         self._choice_memory.hide()
-        if self.find_one(fL.dialog_icon, threshold=0.9, frame=frame):
-            if self.find_one(fL.skip_f, threshold=0.9, frame=frame):
+        if self._observed_find(fL.dialog_icon, frame):
+            if self._observed_find(fL.skip_f, frame):
                 self.send_key("f", after_sleep=0.1)
+                self._match_action = {"key": "f", "mode": "normal_continuation"}
+                self._match_force = True
         return False
+
+    def run(self):
+        """Collect deduplicated matching telemetry without altering input safety."""
+        self._match_scans = []
+        self._match_details = []
+        self._match_cache = {}
+        self._match_frame_size = None
+        self._match_action = None
+        self._match_force = False
+        try:
+            return self._run_cycle()
+        finally:
+            self._emit_match_log()
