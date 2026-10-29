@@ -351,8 +351,17 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
                         self._stop_choice("所有对话选项文字都已变暗", frame)
             return False
         self._choice_memory.hide()
-        if self._observed_find(fL.dialog_icon, frame):
-            if self._observed_find(fL.skip_f, frame):
+        # Either marker can identify a normal F-to-continue dialogue.
+        # Keep independent observations so each template gets its own
+        # normalized hit/ROI/timing telemetry (find_one(list) hides losers).
+        dialog_icon = self._observed_find(fL.dialog_icon, frame)
+        yn_left = self._observed_find(fL.Y_N_left, frame)
+        if dialog_icon or yn_left:
+            skip_f = self._observed_find(
+                fL.skip_f, frame,
+                box=self.box_of_screen(0.873, 0.929, 0.963, 0.994),
+            )
+            if skip_f:
                 self.send_key("f", after_sleep=0.1)
                 self._match_action = {"key": "f", "mode": "normal_continuation"}
                 self._match_force = True
