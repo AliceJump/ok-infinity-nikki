@@ -24,6 +24,7 @@ class ChoiceAttempt:
     pending_focus: int | None = None
     pending_origin: int | None = None
     move_checks: int = 0
+    row_centers: tuple[float, ...] = ()
 
 
 class AutoSkipDialogTask(BaseINTask, TriggerTask):
@@ -58,7 +59,8 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
         dimmed = dimmed_text_rows(frame, icons)
         if lengths is None or dimmed is None or len(dimmed) != len(lengths):
             return None
-        return lengths, dimmed, highlighted_choice_index(frame, icons)
+        return (lengths, dimmed, highlighted_choice_index(frame, icons),
+                tuple((icon.y + icon.height / 2) / height for icon in icons))
 
     @staticmethod
     def _same_lengths(expected, actual):
@@ -66,6 +68,22 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
         return (actual is not None and len(expected) == len(actual)
                 and all(abs(a - b) <= max(0.3, 0.05 * max(a, b))
                         for a, b in zip(expected, actual)))
+
+    @staticmethod
+    def _same_menu_rows(attempt, state):
+        """Verify the menu's number and vertical anchors during navigation.
+
+        Text widths are not stable while focus changes: bright outfit/background
+        fragments can extend the measured text band. Only use the width signature
+        to recognize a menu when it first appears. Between W/S frames, verify
+        actual row geometry and focused keycap instead of corrupted widths.
+        """
+        if state is None or len(state[0]) != len(attempt.decision.lengths):
+            return False
+        positions = state[3]
+        return (len(positions) == len(attempt.row_centers)
+                and all(abs(a - b) <= 0.008
+                        for a, b in zip(attempt.row_centers, positions)))
 
     @staticmethod
     def _choose_unvisited(decision, dimmed):
@@ -110,8 +128,8 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
         """
         attempt = self._choice_attempt
         state = self._menu_state(frame) if self._menu_visible(frame) else None
-        if state is not None and self._same_lengths(attempt.decision.lengths, state[0]):
-            _, dimmed, focus = state
+        if self._same_menu_rows(attempt, state):
+            _, dimmed, focus, _ = state
             if focus == attempt.pending_focus:
                 attempt.pending_focus = None
                 attempt.pending_origin = None
@@ -157,10 +175,10 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
             self._stop_choice("导航过程中菜单消失", frame)
             return
         state = self._menu_state(frame)
-        if state is None or not self._same_lengths(attempt.decision.lengths, state[0]):
+        if not self._same_menu_rows(attempt, state):
             self._stop_choice("导航过程中选项内容无法确认", frame)
             return
-        lengths, dimmed, focus = state
+        lengths, dimmed, focus, _ = state
         target = attempt.decision.index
         if dimmed[target]:
             self._stop_choice("目标选项已经变暗，禁止继续选择", frame)
@@ -206,10 +224,10 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
         if self._menu_visible(frame):
             state = self._menu_state(frame)
             if state is not None:
-                lengths, dimmed, focus = state
+                lengths, dimmed, focus, positions = state
                 decision = self._choice_memory.prepare(lengths)
                 if decision is not None:
-                    self._choice_attempt = ChoiceAttempt(decision)
+                    self._choice_attempt = ChoiceAttempt(decision, row_centers=positions)
                     if self._choose_unvisited(decision, dimmed):
                         self._run_choice(frame)
                     else:
