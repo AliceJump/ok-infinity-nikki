@@ -202,6 +202,53 @@ class TestProjectDialogTrigger(unittest.TestCase):
         self.assertEqual(self.task._choice_attempt.phase, "blocked")
         self.assertEqual([c.args[0] for c in self.task.send_key.call_args_list], ["s"])
 
+    def test_real_screenshots_focus_moves_despite_noisy_text_width(self):
+        """W succeeds even when clothing glints corrupt all text-width bands.
+
+        Reproduces screenshots at 01:51:51: F moves row 2 -> row 1.
+        The old 5% width check wrongly reported that navigation failed.
+        """
+        from src.tasks.dialogue_choices import ChoiceRecord
+
+        self.found = {Feature.dialog_icon, Feature.skip_choose}
+        self.task._choice_memory.records.append(ChoiceRecord(self.lengths, next_index=0))
+        self.focus = 1
+
+        def render_key(key, **kwargs):
+            if key == "w":
+                self.focus = 0
+                self.lengths = (13.3125, 8.875, 28.75, 7.5)
+            return True
+
+        self.task.send_key.side_effect = render_key
+        self.tick()
+        self.assertEqual(self.task._choice_attempt.phase, "navigate")
+        self.assertEqual(self.focus, 0)
+        self.tick()
+        self.assertEqual([c.args[0] for c in self.task.send_key.call_args_list], ["w", "f"])
+        self.assertEqual(self.task._choice_attempt.phase, "confirm")
+        self.assertFalse(self.task.log_warning.called)
+
+    def test_menu_row_positions_change_during_w_blocks_confirmation(self):
+        """A different menu layout after W cannot be mistaken for this one."""
+        from src.tasks.dialogue_choices import ChoiceRecord
+
+        self.found = {Feature.dialog_icon, Feature.skip_choose}
+        self.task._choice_memory.records.append(ChoiceRecord(self.lengths, next_index=0))
+        self.focus = 1
+
+        def replace_menu(key, **kwargs):
+            if key == "w":
+                self.focus = 0
+                self.options[0].y += 20
+            return True
+
+        self.task.send_key.side_effect = replace_menu
+        self.tick(3)
+        self.assertEqual(self.task._choice_attempt.phase, "blocked")
+        self.assertEqual([c.args[0] for c in self.task.send_key.call_args_list], ["w"])
+        self.assertFalse(self.task._choice_memory.active)
+
     def test_f_still_visible_never_commits(self):
         """An unresponsive F key must not advance choice memory."""
         self.found = {Feature.dialog_icon, Feature.skip_choose}
