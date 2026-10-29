@@ -1,6 +1,7 @@
 """Offline tests for dimmed visited rows and screenshot-verified W/S/F input."""
 
 import unittest
+import json
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -32,11 +33,19 @@ class TestProjectDialogTrigger(unittest.TestCase):
         self.focus = 0
         self.deliver_keys = True
         self.send_result = True
-        self.task.find_one = Mock(side_effect=lambda name, **kwargs: name in self.found)
+        self.task.find_one = Mock(side_effect=lambda name, **kwargs: (
+            name in self.found or (
+                name == Feature.Y_N_left
+                and Feature.dialog_icon in self.found
+                and Feature.skip_choose in self.found
+            )
+        ))
         self.task.find_feature = Mock(return_value=self.options)
         self.task.next_frame = Mock(side_effect=lambda: self.task.test_frame)
         self.task.screenshot = Mock()
         self.task.log_warning = Mock()
+        self.task.log_info = Mock()
+        self.task.box_of_screen = Mock(return_value=Box(270, 222, 30, 10))
         self.task.click = Mock()
 
         def key_press(key, **kwargs):
@@ -64,6 +73,54 @@ class TestProjectDialogTrigger(unittest.TestCase):
         self.found = set()
         self.tick(2)
         self.focus = 0
+
+    def test_normalized_template_match_logs_all_rows_and_search_roi(self):
+        """Log coordinates, width, height, confidence and actual search ROI."""
+        self.found = {Feature.dialog_icon, Feature.skip_choose}
+        self.task.find_one.side_effect = lambda name, **kwargs: Box(
+            100, 40, 20, 10, 0.94, name=str(name)
+        )
+        self.options = [
+            Box(220, 130 + index * 15, 6, 4, 0.94, name="chat_icon")
+            for index in range(4)
+        ]
+        self.task.find_feature.return_value = self.options
+        self.tick()
+        self.task.log_info.assert_called_once()
+        msg = self.task.log_info.call_args.args[0]
+        self.assertTrue(msg.startswith("DIALOG_MATCH "))
+        data = json.loads(msg[len("DIALOG_MATCH "):])
+        self.assertEqual(data["frame"], [339, 240])
+        scans = {entry["template"]: entry for entry in data["scans"]}
+        self.assertEqual(set(scans), {"dialog_icon", "Y_N_left", "skip_choose", "chat_icon"})
+        self.assertEqual(scans["chat_icon"]["limit"], "all")
+        self.assertEqual(scans["chat_icon"]["count"], 4)
+        self.assertEqual(scans["chat_icon"]["roi"], {
+            "x": 0.5, "y": 0.25, "w": 0.48, "h": 0.6
+        })
+        self.assertEqual(scans["skip_choose"]["mode"], "explicit_roi")
+        self.assertEqual(scans["dialog_icon"]["mode"], "feature_anchor")
+        for hit in scans["chat_icon"]["hits"]:
+            self.assertEqual(hit["name"], "chat_icon")
+            self.assertEqual(hit["confidence"], 0.94)
+            self.assertAlmostEqual(hit["x"], 220 / 339, delta=0.00002)
+            self.assertAlmostEqual(hit["w"], 6 / 339, delta=0.00002)
+            self.assertAlmostEqual(hit["h"], 4 / 240, delta=0.00002)
+
+    def test_stable_screen_logs_are_rate_limited(self):
+        """Repeated 0.3 second trigger scans must not flood info logs."""
+        self.found = set()
+        self.tick(4)
+        self.task.log_info.assert_called_once()
+        self.assertEqual(self.task.find_one.call_count, 4)
+
+    def test_same_frame_match_is_cached_and_action_forces_log(self):
+        """Multiple guards in one tick reuse a match; still log the F action."""
+        self.found = {Feature.dialog_icon, Feature.skip_f}
+        self.tick()
+        names = [c.args[0] for c in self.task.find_one.call_args_list]
+        self.assertEqual(names.count(Feature.dialog_icon), 1)
+        self.assertIn('"mode":"normal_continuation"', self.task.log_info.call_args.args[0])
 
     def test_registry(self):
         """Keep the task registered only as an opt-in trigger."""
