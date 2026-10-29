@@ -59,6 +59,7 @@ class TestProjectTemplates(unittest.TestCase):
         task.next_frame = Mock(return_value=frame)
         task.screenshot = Mock()
         task.log_warning = Mock()
+        task.log_info = Mock()
         task.click = Mock()
         return task
 
