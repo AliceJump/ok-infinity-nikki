@@ -21,11 +21,15 @@ class ChoiceAttempt:
     phase: str = "navigate"
     checks: int = 0
     absent_frames: int = 0
+    pending_focus: int | None = None
+    pending_origin: int | None = None
+    move_checks: int = 0
 
 
 class AutoSkipDialogTask(BaseINTask, TriggerTask):
     CONFIRM_CHECKS = 5
     ABSENT_FRAMES = 2
+    MOVE_CONFIRM_CHECKS = 3
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -97,6 +101,40 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
             self._choice_memory.hide()
             self._choice_attempt = None
 
+    def _verify_navigation(self, frame):
+        """Wait for a focus update before treating W/S as an input failure.
+
+        Never send a second movement while one is pending. When focus never
+        moved but the currently highlighted row is bright, confirming that row
+        is safer than permanently locking a usable dialogue.
+        """
+        attempt = self._choice_attempt
+        state = self._menu_state(frame) if self._menu_visible(frame) else None
+        if state is not None and self._same_lengths(attempt.decision.lengths, state[0]):
+            _, dimmed, focus = state
+            if focus == attempt.pending_focus:
+                attempt.pending_focus = None
+                attempt.pending_origin = None
+                attempt.phase = "navigate"
+                return
+        else:
+            dimmed, focus = None, None
+
+        attempt.move_checks += 1
+        if attempt.move_checks < self.MOVE_CONFIRM_CHECKS:
+            return
+        if (dimmed is not None and focus == attempt.pending_origin
+                and focus is not None and not dimmed[focus]):
+            attempt.decision.index = focus
+            attempt.phase = "navigate"
+            attempt.pending_focus = None
+            attempt.pending_origin = None
+            self.log_warning("W/S 未见高亮移动，改为确认当前已高亮的亮色选项")
+            return
+        self._stop_choice(
+            f"W/S 后高亮无法确认（原行={attempt.pending_origin}，"
+            f"期望行={attempt.pending_focus}，观察行={focus}）", frame)
+
     def _run_choice(self, frame):
         """Validate each W/S movement against the actual highlighted row."""
         attempt = self._choice_attempt
@@ -111,6 +149,9 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
             return
         if attempt.phase == "confirm":
             self._observe_confirmation(frame)
+            return
+        if attempt.phase == "verify_move":
+            self._verify_navigation(frame)
             return
         if not self._menu_visible(frame):
             self._stop_choice("导航过程中菜单消失", frame)
@@ -145,17 +186,12 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
             attempt.phase = "confirm"
             self._observe_confirmation(updated)
             return
-        if not self._menu_visible(updated):
-            self._stop_choice(f"按下 {key.upper()} 后菜单消失", updated)
-            return
-        next_state = self._menu_state(updated)
-        expected_focus = focus + (1 if key == "s" else -1)
-        if (next_state is None
-                or not self._same_lengths(lengths, next_state[0])
-                or next_state[2] != expected_focus):
-            self._stop_choice(f"按下 {key.upper()} 后高亮行未移动到 {expected_focus + 1}", updated)
-            return
         attempt.moves += 1
+        attempt.pending_origin = focus
+        attempt.pending_focus = focus + (1 if key == "s" else -1)
+        attempt.move_checks = 0
+        attempt.phase = "verify_move"
+        self._verify_navigation(updated)
 
     def run(self):
         """Choose bright unvisited options, at most one input per trigger."""
