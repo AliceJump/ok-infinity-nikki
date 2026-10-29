@@ -1,6 +1,7 @@
 """Replay 16:9 Nikki choice screenshots with the installed template matcher."""
 
 import unittest
+import json
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -127,3 +128,34 @@ class TestProjectTemplates(unittest.TestCase):
         for old, new in zip(before, after):
             self.assertAlmostEqual(old, new, delta=0.3)
         self.assertEqual(highlighted_choice_index(changed, icons), 0)
+
+    def test_existing_skip_f_template_on_option_keycaps(self):
+        """Test the actual published skip_f pixels against each option's left-hand F."""
+        metadata = json.loads((ROOT / "assets" / "coco_annotations.json").read_text("utf-8"))
+        category = next(cat["id"] for cat in metadata["categories"] if cat["name"] == "skip_f")
+        annotation = next(a for a in metadata["annotations"] if a["category_id"] == category)
+        image = next(i for i in metadata["images"] if i["id"] == annotation["image_id"])
+        source = cv2.imread(str(ROOT / "assets" / image["file_name"]))
+        self.assertIsNotNone(source)
+        x, y, w, h = annotation["bbox"]
+        template = source[y:y + h, x:x + w]
+
+        matcher = self.make_matcher()
+        icons = sorted(matcher.find_one_feature(
+            self.frame, "chat_icon", threshold=0.9, box=Box(960, 270, 921, 648)
+        ), key=lambda box: box.y)
+        self.assertEqual(len(icons), 4)
+        scores = []
+        for icon in icons:
+            unit = icon.height
+            x0 = max(0, round(icon.x - unit * 6.1))
+            x1 = min(self.frame.shape[1], round(icon.x - unit * 2.3))
+            y0 = max(0, round(icon.y - unit * 0.65))
+            y1 = min(self.frame.shape[0], round(icon.y + unit * 1.6))
+            correlation = cv2.matchTemplate(
+                self.frame[y0:y1, x0:x1], template, cv2.TM_CCOEFF_NORMED
+            )
+            scores.append(float(correlation.max()))
+        print("Actual runtime skip_f template, per-row confidence:", scores, flush=True)
+        self.assertGreaterEqual(scores[0], 0.9)
+        self.assertTrue(all(score < 0.9 for score in scores[1:]))
