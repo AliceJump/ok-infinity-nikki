@@ -95,9 +95,10 @@ class TestProjectDialogTrigger(unittest.TestCase):
         self.assertEqual(set(scans), {"dialog_icon", "Y_N_left", "skip_choose", "chat_icon"})
         self.assertEqual(scans["chat_icon"]["limit"], "all")
         self.assertEqual(scans["chat_icon"]["count"], 4)
-        self.assertEqual(scans["chat_icon"]["roi"], {
-            "x": 0.5, "y": 0.25, "w": 0.48, "h": 0.6
-        })
+        roi = scans["chat_icon"]["roi"]
+        # ok.Box rounds the provided float ROI to pixels; normalize actual pixels.
+        for key, expected in (("x", 0.5), ("y", 0.25), ("w", 0.48), ("h", 0.6)):
+            self.assertAlmostEqual(roi[key], expected, delta=1 / 339)
         self.assertEqual(scans["skip_choose"]["mode"], "explicit_roi")
         self.assertEqual(scans["dialog_icon"]["mode"], "feature_anchor")
         for hit in scans["chat_icon"]["hits"]:
