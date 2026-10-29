@@ -143,12 +143,14 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
 
     def _menu_visible(self, frame):
         """Require both dialogue and navigation hints for a choice menu."""
-        return (frame is not None
-                and bool(self._observed_find(fL.dialog_icon, frame))
-                and bool(self._observed_find(fL.Y_N_left, frame))
-                and bool(self._observed_find(
-                    fL.skip_choose, frame,
-                    box=self.box_of_screen(0.792, 0.927, 0.893, 0.962))))
+        if frame is None or not self._observed_find(fL.dialog_icon, frame):
+            return False
+        # Y_N_left is an optional indicator, not required by every dialogue
+        # layout; keep it in telemetry without blocking ordinary options.
+        self._observed_find(fL.Y_N_left, frame)
+        return bool(self._observed_find(
+            fL.skip_choose, frame,
+            box=self.box_of_screen(0.792, 0.927, 0.893, 0.962)))
 
     def _menu_state(self, frame):
         """Read text fingerprint, visited status, and highlighted row."""
