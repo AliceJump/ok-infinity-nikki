@@ -113,7 +113,11 @@ class TestProjectDialogTrigger(unittest.TestCase):
         self.found = set()
         self.tick(4)
         self.task.log_info.assert_called_once()
-        self.assertEqual(self.task.find_one.call_count, 4)
+        # Two distinct continuation-marker templates are checked per frame.
+        # Each marker is matched only once per tick (no duplicate scan).
+        observed = [call.args[0] for call in self.task.find_one.call_args_list]
+        self.assertEqual(observed.count(Feature.dialog_icon), 4)
+        self.assertEqual(observed.count(Feature.Y_N_left), 4)
 
     def test_same_frame_match_is_cached_and_action_forces_log(self):
         """Multiple guards in one tick reuse a match; still log the F action."""
