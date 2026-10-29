@@ -17,7 +17,7 @@
 
 ## 模板匹配诊断与 ROI 统计
 
-触发任务会向普通运行日志输出以 `DIALOG_MATCH ` 开头的单行 JSON（`log_info`）。包含每次真正执行的模板匹配：`dialog_icon`、`Y_N_left`、`skip_choose`、`chat_icon`（多个聊天气泡会全部输出）、普通剧情的 `skip_f`。
+触发任务会向普通运行日志输出以 `DIALOG_MATCH ` 开头的单行 JSON（`log_info`）。包含每次真正执行的模板匹配：`dialog_icon`、`Y_N_left`（可选辅助信号，不作为所有对话菜单的前置条件）、`skip_choose`、`chat_icon`（多个聊天气泡会全部输出）、普通剧情的 `skip_f`。
 
 - `frame: [width, height]` 是原始帧的像素尺寸；每个 `hits[]` 都记录模板 `name`、`confidence` 和 **归一化左上角坐标、宽高** `x/y/w/h`（对应像素 `x/W, y/H, w/W, h/H`；不是中心坐标）。未匹配的查询也保留 `count: 0`，便于统计误检与漏检。
 - `scans[]` 每项记录实际搜索的 `template`、`threshold`、`limit`、`count` 和 `ms`；`total_match_ms` 为本轮真正执行的匹配耗时总和，不包含截图等待和图像亮度分析时间。
