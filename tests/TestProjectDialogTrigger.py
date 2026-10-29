@@ -155,6 +155,53 @@ class TestProjectDialogTrigger(unittest.TestCase):
         self.assertEqual([c.args[0] for c in self.task.send_key.call_args_list], ["s"])
         self.assertFalse(self.task._choice_memory.records)
 
+    def test_unresponsive_w_chooses_the_still_bright_focused_row(self):
+        """Reproduce user log: W unchanged, then use focused bright row, not lock."""
+        from src.tasks.dialogue_choices import ChoiceRecord
+
+        self.found = {Feature.dialog_icon, Feature.skip_choose}
+        self.task._choice_memory.records.append(ChoiceRecord(self.lengths, next_index=0))
+        self.focus = 1
+        self.deliver_keys = False
+        self.tick()
+        self.assertEqual(self.task._choice_attempt.phase, "verify_move")
+        self.tick(2)
+        self.assertEqual(self.task._choice_attempt.phase, "navigate")
+        self.assertEqual(self.task._choice_attempt.decision.index, 1)
+        self.tick()
+        self.assertEqual([c.args[0] for c in self.task.send_key.call_args_list], ["w", "f"])
+        self.assertFalse(self.task._choice_memory.active)
+        self.menu_closed()
+        self.assertEqual(self.task._choice_memory.records[0].next_index, 2)
+
+    def test_delayed_w_focus_update_is_accepted(self):
+        """The first screenshot after key delivery can precede a rendered focus."""
+        from src.tasks.dialogue_choices import ChoiceRecord
+
+        self.found = {Feature.dialog_icon, Feature.skip_choose}
+        self.task._choice_memory.records.append(ChoiceRecord(self.lengths, next_index=0))
+        self.focus = 1
+        self.deliver_keys = False
+        self.tick()
+        self.assertEqual(self.task._choice_attempt.phase, "verify_move")
+        self.focus = 0
+        self.tick()
+        self.assertEqual(self.task._choice_attempt.phase, "navigate")
+        self.tick()
+        self.assertEqual([c.args[0] for c in self.task.send_key.call_args_list], ["w", "f"])
+        self.assertEqual(self.task._choice_attempt.decision.index, 0)
+
+    def test_missing_focus_never_blindly_confirms_after_s(self):
+        """If focus cannot be observed, no bright fallback is safe."""
+        self.found = {Feature.dialog_icon, Feature.skip_choose}
+        self.dimmed = (True, False, False, False)
+        self.deliver_keys = False
+        self.tick()
+        self.focus = None
+        self.tick(3)
+        self.assertEqual(self.task._choice_attempt.phase, "blocked")
+        self.assertEqual([c.args[0] for c in self.task.send_key.call_args_list], ["s"])
+
     def test_f_still_visible_never_commits(self):
         """An unresponsive F key must not advance choice memory."""
         self.found = {Feature.dialog_icon, Feature.skip_choose}
