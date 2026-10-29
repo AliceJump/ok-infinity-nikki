@@ -141,6 +141,44 @@ class TestProjectDialogTrigger(unittest.TestCase):
         self.task.send_key.assert_called_once_with("f", after_sleep=0.1)
         self.task.click.assert_not_called()
 
+    def test_y_n_left_alone_allows_normal_f_continuation(self):
+        """The user's alternate icon is OR, not an additional AND guard."""
+        self.found = {Feature.Y_N_left, Feature.skip_f}
+        self.tick()
+        self.task.send_key.assert_called_once_with("f", after_sleep=0.1)
+        self.task.click.assert_not_called()
+        # Preserve the user's narrow bottom-right F search region.
+        self.task.box_of_screen.assert_called_once_with(0.873, 0.929, 0.963, 0.994)
+        scans = json.loads(self.task.log_info.call_args.args[0][len("DIALOG_MATCH "):])["scans"]
+        self.assertEqual([item["template"] for item in scans], [
+            "dialog_icon", "Y_N_left", "skip_f",
+        ])
+        self.assertEqual(scans[1]["count"], 1)
+        self.assertEqual(scans[2]["mode"], "explicit_roi")
+
+    def test_dialog_icon_alone_still_allows_normal_f_continuation(self):
+        """Matching both markers is not necessary; keep individual telemetry."""
+        self.found = {Feature.dialog_icon, Feature.skip_f}
+        self.tick()
+        self.task.send_key.assert_called_once_with("f", after_sleep=0.1)
+        scans = json.loads(self.task.log_info.call_args.args[0][len("DIALOG_MATCH "):])["scans"]
+        self.assertEqual([entry["template"] for entry in scans], [
+            "dialog_icon", "Y_N_left", "skip_choose", "skip_f",
+        ])
+        self.assertEqual(scans[1]["count"], 0)
+        self.assertEqual(scans[-1]["mode"], "explicit_roi")
+
+    def test_menu_does_not_require_y_n_left(self):
+        """The extra marker cannot accidentally block ordinary W/S choices."""
+        self.found = {Feature.dialog_icon, Feature.skip_choose}
+        self.task.find_one.side_effect = lambda name, **kwargs: name in self.found
+        self.tick()
+        self.task.send_key.assert_called_once_with(
+            "f", down_time=0.08, after_sleep=0.12,
+        )
+        self.assertEqual(self.task._choice_attempt.phase, "confirm")
+        self.task.click.assert_not_called()
+
     def test_first_bright_option_f_and_commit(self):
         """Do not commit a selection before the menu actually disappears."""
         self.found = {Feature.dialog_icon, Feature.skip_choose}
