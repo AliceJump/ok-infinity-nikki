@@ -60,6 +60,10 @@ class TestProjectTemplates(unittest.TestCase):
         task.screenshot = Mock()
         task.log_warning = Mock()
         task.log_info = Mock()
+        task.box_of_screen = lambda x1, y1, x2, y2: Box(
+            round(x1 * frame.shape[1]), round(y1 * frame.shape[0]),
+            round((x2 - x1) * frame.shape[1]), round((y2 - y1) * frame.shape[0]),
+        )
         task.click = Mock()
         return task
 
