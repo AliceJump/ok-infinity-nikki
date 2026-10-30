@@ -40,7 +40,7 @@ def validate(root: Path) -> None:
         assert set(features) == {cat["name"] for cat in tables["categories"].values()}
         libraries.append(features)
     assert libraries[0] == libraries[1], "Published runtime differs from Toolkit source"
-    assert {"dialog_icon", "skip_choose", "skip_f", "chat_icon"} == set(libraries[0])
+    assert {"dialog_icon", "skip_choose", "skip_f", "chat_icon", "Y_N_left"} == set(libraries[0])
     for filename in ("boxes.json", "points.json"):
         data = json.loads((root / "ok_templates" / filename).read_text("utf-8"))
         assert all(isinstance(data[key], list) for key in ("images", "annotations", "categories"))
