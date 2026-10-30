@@ -31,16 +31,15 @@ class TestProjectConfig(unittest.TestCase):
 
         resolution = config["supported_resolution"]
         expected = [
-            (3392, 2400),
-            (2560, 1812),
-            (2048, 1450),
-            (1920, 1360),
-            (1600, 1132),
-            (1440, 1020),
-            (1280, 906),
+            (3840, 2160),
+            (2560, 1440),
+            (1920, 1080),
+            (1600, 900),
+            (1366, 768),
+            (1280, 720),
         ]
-        self.assertEqual(resolution["ratio"], "3392:2400")
-        self.assertEqual(resolution["min_size"], (1280, 900))
+        self.assertEqual(resolution["ratio"], "16:9")
+        self.assertEqual(resolution["min_size"], (1280, 720))
         self.assertEqual(resolution["resize_to"], expected)
 
         numerator, denominator = map(int, resolution["ratio"].split(":"))
