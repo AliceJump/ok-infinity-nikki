@@ -177,13 +177,6 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
                 tuple((icon.y + icon.height / 2) / height for icon in icons))
 
     @staticmethod
-    def _same_lengths(expected, actual):
-        """Tolerate small antialiasing or highlighting differences."""
-        return (actual is not None and len(expected) == len(actual)
-                and all(abs(a - b) <= max(0.3, 0.05 * max(a, b))
-                        for a, b in zip(expected, actual)))
-
-    @staticmethod
     def _same_menu_rows(attempt, state):
         """Verify the menu's number and vertical anchors during navigation.
 
