@@ -2,7 +2,6 @@ name: PR Test
 
 on:
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read
@@ -16,7 +15,6 @@ jobs:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha }}
           lfs: true
-          submodules: recursive
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
