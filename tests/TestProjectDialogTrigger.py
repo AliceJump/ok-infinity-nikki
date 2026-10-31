@@ -1,6 +1,7 @@
-"""No-game dialogue decisions and independent option fingerprints."""
+"""Offline tests for dimmed visited rows and screenshot-verified W/S/F input."""
 
 import unittest
+import json
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -15,98 +16,368 @@ from src.tasks.dialogue_choices import ChoiceMemory
 class FrameTask(AutoSkipDialogTask):
     @property
     def frame(self):
-        """Return a fixture without creating a game executor."""
         return self.test_frame
-
 
 
 class TestProjectDialogTrigger(unittest.TestCase):
     def setUp(self):
-        """Isolate the task from capture and input."""
+        """Simulate menus and keyboard focus; do not send Windows input."""
         self.task = FrameTask.__new__(FrameTask)
         self.task.test_frame = np.zeros((240, 339, 3), dtype=np.uint8)
         self.task._choice_memory = ChoiceMemory()
-        self.task.send_key = Mock()
-        self.task.click = Mock(return_value=True)
+        self.task._choice_attempt = None
         self.found = set()
-        self.task.find_one = Mock(side_effect=lambda name, **kwargs: name in self.found)
-        self.options = [Box(220, 130, 6, 4), Box(220, 145, 6, 4)]
-        self.task.find_feature = Mock(side_effect=lambda *args, **kwargs: self.options)
+        self.options = [Box(220, 130 + i * 15, 6, 4) for i in range(4)]
+        self.lengths = (3.0, 4.0, 5.0, 6.0)
+        self.dimmed = (False,) * 4
+        self.focus = 0
+        self.deliver_keys = True
+        self.send_result = True
+        self.task.find_one = Mock(side_effect=lambda name, **kwargs: (
+            name in self.found or (
+                name == Feature.Y_N_left
+                and Feature.dialog_icon in self.found
+                and Feature.skip_choose in self.found
+            )
+        ))
+        self.task.find_feature = Mock(return_value=self.options)
+        self.task.next_frame = Mock(side_effect=lambda: self.task.test_frame)
+        self.task.screenshot = Mock()
+        self.task.log_warning = Mock()
+        self.task.log_info = Mock()
+        self.task.box_of_screen = Mock(return_value=Box(270, 222, 30, 10))
+        self.task.click = Mock()
+
+        def key_press(key, **kwargs):
+            if self.deliver_keys:
+                self.focus += (1 if key == "s" else -1 if key == "w" else 0)
+            return self.send_result
+
+        self.task.send_key = Mock(side_effect=key_press)
+        for name, callback in (
+            ("text_band_lengths", lambda frame, icons: self.lengths),
+            ("dimmed_text_rows", lambda frame, icons: self.dimmed),
+            ("highlighted_choice_index", lambda frame, icons: self.focus),
+        ):
+            patcher = patch("src.tasks.AutoSkipDialogTask." + name, side_effect=callback)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def tick(self, count=1):
+        """Advance a requested number of trigger ticks."""
+        for _ in range(count):
+            self.assertIs(self.task.run(), False)
+
+    def menu_closed(self):
+        """Commit a confirmed selection after two frames without W/S."""
+        self.found = set()
+        self.tick(2)
+        self.focus = 0
+
+    def test_normalized_template_match_logs_all_rows_and_search_roi(self):
+        """Log coordinates, width, height, confidence and actual search ROI."""
+        self.found = {Feature.dialog_icon, Feature.skip_choose}
+        self.task.find_one.side_effect = lambda name, **kwargs: Box(
+            100, 40, 20, 10, 0.94, name=str(name)
+        )
+        self.options = [
+            Box(220, 130 + index * 15, 6, 4, 0.94, name="chat_icon")
+            for index in range(4)
+        ]
+        self.task.find_feature.return_value = self.options
+        self.tick()
+        self.task.log_info.assert_called_once()
+        msg = self.task.log_info.call_args.args[0]
+        self.assertTrue(msg.startswith("DIALOG_MATCH "))
+        data = json.loads(msg[len("DIALOG_MATCH "):])
+        self.assertEqual(data["frame"], [339, 240])
+        scans = {entry["template"]: entry for entry in data["scans"]}
+        self.assertEqual(set(scans), {"dialog_icon", "Y_N_left", "skip_choose", "chat_icon"})
+        self.assertEqual(scans["chat_icon"]["limit"], "all")
+        self.assertEqual(scans["chat_icon"]["count"], 4)
+        roi = scans["chat_icon"]["roi"]
+        # ok.Box rounds the provided float ROI to pixels; normalize actual pixels.
+        for key, expected in (("x", 0.5), ("y", 0.25), ("w", 0.48), ("h", 0.6)):
+            self.assertAlmostEqual(roi[key], expected, delta=1 / 339)
+        self.assertEqual(scans["skip_choose"]["mode"], "explicit_roi")
+        self.assertEqual(scans["dialog_icon"]["mode"], "feature_anchor")
+        for hit in scans["chat_icon"]["hits"]:
+            self.assertEqual(hit["name"], "chat_icon")
+            self.assertEqual(hit["confidence"], 0.94)
+            self.assertAlmostEqual(hit["x"], 220 / 339, delta=0.00002)
+            self.assertAlmostEqual(hit["w"], 6 / 339, delta=0.00002)
+            self.assertAlmostEqual(hit["h"], 4 / 240, delta=0.00002)
+
+    def test_stable_screen_logs_are_rate_limited(self):
+        """Repeated 0.3 second trigger scans must not flood info logs."""
+        self.found = set()
+        self.tick(4)
+        self.task.log_info.assert_called_once()
+        # Two distinct continuation-marker templates are checked per frame.
+        # Each marker is matched only once per tick (no duplicate scan).
+        observed = [call.args[0] for call in self.task.find_one.call_args_list]
+        self.assertEqual(observed.count(Feature.dialog_icon), 4)
+        self.assertEqual(observed.count(Feature.Y_N_left), 4)
+
+    def test_same_frame_match_is_cached_and_action_forces_log(self):
+        """Multiple guards in one tick reuse a match; still log the F action."""
+        self.found = {Feature.dialog_icon, Feature.skip_f}
+        self.tick()
+        names = [c.args[0] for c in self.task.find_one.call_args_list]
+        self.assertEqual(names.count(Feature.dialog_icon), 1)
+        self.assertIn('"mode":"normal_continuation"', self.task.log_info.call_args.args[0])
 
     def test_registry(self):
-        """Dialogue skipping is opt-in trigger work."""
+        """Keep the task registered only as an opt-in trigger."""
         entry = ["src.tasks.AutoSkipDialogTask", "AutoSkipDialogTask"]
         self.assertTrue(issubclass(AutoSkipDialogTask, TriggerTask))
         self.assertIn(entry, config["trigger_tasks"])
         self.assertNotIn(entry, config["onetime_tasks"])
 
-    def test_idle_and_removed_task_item_fallback(self):
-        """Neither orphan hints nor removed task-item handling may send input."""
+    def test_orphan_prompts_and_normal_continuation(self):
+        """Ignore unrelated hints, but keep ordinary F continuation."""
         for found in (set(), {Feature.skip_f}, {Feature.skip_choose}):
             self.found = found
-            self.assertIs(self.task.run(), False)
+            self.tick()
         self.task.send_key.assert_not_called()
-        self.task.click.assert_not_called()
-        self.task.find_feature.assert_not_called()
-
-    def test_continuation_requires_dialogue(self):
-        """A verified dialogue and F prompt can advance once."""
         self.found = {Feature.dialog_icon, Feature.skip_f}
-        self.assertIs(self.task.run(), False)
+        self.tick()
         self.task.send_key.assert_called_once_with("f", after_sleep=0.1)
         self.task.click.assert_not_called()
 
-    def test_ws_gate_and_choice_priority(self):
-        """W/S gates option detection and takes priority over F."""
-        self.found = {Feature.dialog_icon}
-        self.task.run()
-        self.task.find_feature.assert_not_called()
-        self.found |= {Feature.skip_choose, Feature.skip_f}
-        self.task.find_feature.return_value = []
-        self.task.find_feature.side_effect = None
-        self.task.run()
-        self.task.send_key.assert_not_called()
+    def test_y_n_left_alone_allows_normal_f_continuation(self):
+        """The user's alternate icon is OR, not an additional AND guard."""
+        self.found = {Feature.Y_N_left, Feature.skip_f}
+        self.tick()
+        self.task.send_key.assert_called_once_with("f", after_sleep=0.1)
+        self.task.click.assert_not_called()
+        # Preserve the user's narrow bottom-right F search region.
+        self.task.box_of_screen.assert_called_once_with(0.873, 0.929, 0.963, 0.994)
+        scans = json.loads(self.task.log_info.call_args.args[0][len("DIALOG_MATCH "):])["scans"]
+        self.assertEqual([item["template"] for item in scans], [
+            "dialog_icon", "Y_N_left", "skip_f",
+        ])
+        self.assertEqual(scans[1]["count"], 1)
+        self.assertEqual(scans[2]["mode"], "explicit_roi")
+
+    def test_dialog_icon_alone_still_allows_normal_f_continuation(self):
+        """Matching both markers is not necessary; keep individual telemetry."""
+        self.found = {Feature.dialog_icon, Feature.skip_f}
+        self.tick()
+        self.task.send_key.assert_called_once_with("f", after_sleep=0.1)
+        scans = json.loads(self.task.log_info.call_args.args[0][len("DIALOG_MATCH "):])["scans"]
+        self.assertEqual([entry["template"] for entry in scans], [
+            "dialog_icon", "Y_N_left", "skip_choose", "skip_f",
+        ])
+        self.assertEqual(scans[1]["count"], 0)
+        self.assertEqual(scans[-1]["mode"], "explicit_roi")
+
+    def test_menu_does_not_require_y_n_left(self):
+        """The extra marker cannot accidentally block ordinary W/S choices."""
+        self.found = {Feature.dialog_icon, Feature.skip_choose}
+        self.task.find_one.side_effect = lambda name, **kwargs: name in self.found
+        self.tick()
+        self.task.send_key.assert_called_once_with(
+            "f", down_time=0.08, after_sleep=0.12,
+        )
+        self.assertEqual(self.task._choice_attempt.phase, "confirm")
         self.task.click.assert_not_called()
 
-    def test_repeated_fingerprint_advances_after_menu_disappears(self):
-        """Debounce a visible menu; returning menus advance and wrap."""
+    def test_first_bright_option_f_and_commit(self):
+        """Do not commit a selection before the menu actually disappears."""
         self.found = {Feature.dialog_icon, Feature.skip_choose}
-        with patch("src.tasks.AutoSkipDialogTask.text_band_lengths", return_value=(4.0, 6.0)):
-            self.task.run()
-            self.task.run()
-            self.task.click.assert_called_once_with(self.options[0], after_sleep=0.2)
-            self.found = set()
-            self.task.run()
+        self.tick()
+        self.task.send_key.assert_called_once_with("f", down_time=0.08, after_sleep=0.12)
+        self.assertFalse(self.task._choice_memory.records)
+        self.tick()
+        self.assertEqual(self.task.send_key.call_count, 1)
+        self.menu_closed()
+        self.assertEqual(self.task._choice_memory.records[0].next_index, 1)
+        self.assertTrue(self.task.screenshot.called)
+        self.task.click.assert_not_called()
+
+    def test_visited_first_choice_skipped(self):
+        """Gray visited rows are not candidates, even if memory starts at zero."""
+        self.found = {Feature.dialog_icon, Feature.skip_choose}
+        self.dimmed = (True, False, False, False)
+        self.tick(2)
+        self.assertEqual([c.args[0] for c in self.task.send_key.call_args_list], ["s", "f"])
+        self.assertEqual(self.task._choice_attempt.decision.index, 1)
+        self.menu_closed()
+        self.assertEqual(self.task._choice_memory.records[0].next_index, 2)
+
+    def test_second_row_already_highlighted_sends_f(self):
+        """Match the supplied night screenshot: row 1 dim and row 2 focused."""
+        self.found = {Feature.dialog_icon, Feature.skip_choose}
+        self.dimmed = (True, False, False, False)
+        self.focus = 1
+        self.tick()
+        self.task.send_key.assert_called_once_with("f", down_time=0.08, after_sleep=0.12)
+        self.assertEqual(self.task._choice_attempt.decision.index, 1)
+
+    def test_w_navigation_from_lower_focus(self):
+        """Use W when the actual focus is below the next bright candidate."""
+        self.found = {Feature.dialog_icon, Feature.skip_choose}
+        self.dimmed = (True, False, True, True)
+        self.focus = 3
+        self.tick(3)
+        self.assertEqual([c.args[0] for c in self.task.send_key.call_args_list], ["w", "w", "f"])
+        self.assertEqual(self.focus, 1)
+
+    def test_four_rows_navigate_three_s_before_f(self):
+        """Preserve menu fingerprint rotation among available choices."""
+        self.found = {Feature.dialog_icon, Feature.skip_choose}
+        for index in range(3):
+            self.tick(index + 1)
+            self.menu_closed()
             self.found = {Feature.dialog_icon, Feature.skip_choose}
-            self.task.run()
-            self.assertEqual(self.task.click.call_args.args[0], self.options[1])
-            self.task._choice_memory.hide()
-            self.task.run()
-            self.assertEqual(self.task.click.call_args.args[0], self.options[0])
-        self.task.send_key.assert_not_called()
-
-    def test_failed_click_and_unreadable_text_do_not_advance(self):
-        """Save progress only after a measured option was successfully clicked."""
-        self.found = {Feature.dialog_icon, Feature.skip_choose}
-        with patch("src.tasks.AutoSkipDialogTask.text_band_lengths", return_value=None):
-            self.task.run()
+        self.task.send_key.reset_mock()
+        self.tick(4)
+        self.assertEqual([c.args[0] for c in self.task.send_key.call_args_list], ["s", "s", "s", "f"])
         self.task.click.assert_not_called()
-        self.task.click.return_value = False
-        with patch("src.tasks.AutoSkipDialogTask.text_band_lengths", return_value=(4.0, 6.0)):
-            self.task.run()
-            self.assertFalse(self.task._choice_memory.records)
-            self.task.click.return_value = True
-            self.task.run()
-        self.task.click.assert_called_with(self.options[0], after_sleep=0.2)
+
+    def test_all_rows_dark_stops(self):
+        """If everything has been selected, do not default to any row."""
+        self.found = {Feature.dialog_icon, Feature.skip_choose}
+        self.dimmed = (True, True, True, True)
+        self.tick(5)
+        self.assertEqual(self.task._choice_attempt.phase, "blocked")
+        self.task.send_key.assert_not_called()
+        self.assertFalse(self.task._choice_memory.records)
+
+    def test_missing_s_effect_blocks_before_f(self):
+        """No observed keyboard focus movement means stop, not blind confirm."""
+        self.found = {Feature.dialog_icon, Feature.skip_choose}
+        self.dimmed = (True, False, False, False)
+        self.deliver_keys = False
+        self.tick(4)
+        self.assertEqual(self.task._choice_attempt.phase, "blocked")
+        self.assertEqual([c.args[0] for c in self.task.send_key.call_args_list], ["s"])
+        self.assertFalse(self.task._choice_memory.records)
+
+    def test_unresponsive_w_chooses_the_still_bright_focused_row(self):
+        """Reproduce user log: W unchanged, then use focused bright row, not lock."""
+        from src.tasks.dialogue_choices import ChoiceRecord
+
+        self.found = {Feature.dialog_icon, Feature.skip_choose}
+        self.task._choice_memory.records.append(ChoiceRecord(self.lengths, next_index=0))
+        self.focus = 1
+        self.deliver_keys = False
+        self.tick()
+        self.assertEqual(self.task._choice_attempt.phase, "verify_move")
+        self.tick(2)
+        self.assertEqual(self.task._choice_attempt.phase, "navigate")
+        self.assertEqual(self.task._choice_attempt.decision.index, 1)
+        self.tick()
+        self.assertEqual([c.args[0] for c in self.task.send_key.call_args_list], ["w", "f"])
+        self.assertFalse(self.task._choice_memory.active)
+        self.menu_closed()
+        self.assertEqual(self.task._choice_memory.records[0].next_index, 2)
+
+    def test_delayed_w_focus_update_is_accepted(self):
+        """The first screenshot after key delivery can precede a rendered focus."""
+        from src.tasks.dialogue_choices import ChoiceRecord
+
+        self.found = {Feature.dialog_icon, Feature.skip_choose}
+        self.task._choice_memory.records.append(ChoiceRecord(self.lengths, next_index=0))
+        self.focus = 1
+        self.deliver_keys = False
+        self.tick()
+        self.assertEqual(self.task._choice_attempt.phase, "verify_move")
+        self.focus = 0
+        self.tick()
+        self.assertEqual(self.task._choice_attempt.phase, "navigate")
+        self.tick()
+        self.assertEqual([c.args[0] for c in self.task.send_key.call_args_list], ["w", "f"])
+        self.assertEqual(self.task._choice_attempt.decision.index, 0)
+
+    def test_missing_focus_never_blindly_confirms_after_s(self):
+        """If focus cannot be observed, no bright fallback is safe."""
+        self.found = {Feature.dialog_icon, Feature.skip_choose}
+        self.dimmed = (True, False, False, False)
+        self.deliver_keys = False
+        self.tick()
+        self.focus = None
+        self.tick(3)
+        self.assertEqual(self.task._choice_attempt.phase, "blocked")
+        self.assertEqual([c.args[0] for c in self.task.send_key.call_args_list], ["s"])
+
+    def test_real_screenshots_focus_moves_despite_noisy_text_width(self):
+        """W succeeds even when clothing glints corrupt all text-width bands.
+
+        Reproduces screenshots at 01:51:51: F moves row 2 -> row 1.
+        The old 5% width check wrongly reported that navigation failed.
+        """
+        from src.tasks.dialogue_choices import ChoiceRecord
+
+        self.found = {Feature.dialog_icon, Feature.skip_choose}
+        self.task._choice_memory.records.append(ChoiceRecord(self.lengths, next_index=0))
+        self.focus = 1
+
+        def render_key(key, **kwargs):
+            if key == "w":
+                self.focus = 0
+                self.lengths = (13.3125, 8.875, 28.75, 7.5)
+            return True
+
+        self.task.send_key.side_effect = render_key
+        self.tick()
+        self.assertEqual(self.task._choice_attempt.phase, "navigate")
+        self.assertEqual(self.focus, 0)
+        self.tick()
+        self.assertEqual([c.args[0] for c in self.task.send_key.call_args_list], ["w", "f"])
+        self.assertEqual(self.task._choice_attempt.phase, "confirm")
+        self.assertFalse(self.task.log_warning.called)
+
+    def test_menu_row_positions_change_during_w_blocks_confirmation(self):
+        """A different menu layout after W cannot be mistaken for this one."""
+        from src.tasks.dialogue_choices import ChoiceRecord
+
+        self.found = {Feature.dialog_icon, Feature.skip_choose}
+        self.task._choice_memory.records.append(ChoiceRecord(self.lengths, next_index=0))
+        self.focus = 1
+
+        def replace_menu(key, **kwargs):
+            if key == "w":
+                self.focus = 0
+                row = self.options[0]
+                self.options[0] = Box(row.x, row.y + 20, row.width, row.height)
+            return True
+
+        self.task.send_key.side_effect = replace_menu
+        self.tick(3)
+        self.assertEqual(self.task._choice_attempt.phase, "blocked")
+        self.assertEqual([c.args[0] for c in self.task.send_key.call_args_list], ["w"])
+        self.assertFalse(self.task._choice_memory.active)
+
+    def test_f_still_visible_never_commits(self):
+        """An unresponsive F key must not advance choice memory."""
+        self.found = {Feature.dialog_icon, Feature.skip_choose}
+        self.tick(self.task.CONFIRM_CHECKS + 1)
+        self.assertEqual(self.task._choice_attempt.phase, "blocked")
+        self.assertEqual(self.task.send_key.call_count, 1)
+        self.assertFalse(self.task._choice_memory.records)
+
+    def test_unreadable_or_failed_input(self):
+        """Unknown text and failed send return do not advance or retry."""
+        self.found = {Feature.dialog_icon, Feature.skip_choose}
+        self.lengths = None
+        self.tick()
+        self.task.send_key.assert_not_called()
+        self.lengths = (3.0, 4.0, 5.0, 6.0)
+        self.send_result = False
+        self.tick(4)
+        self.assertEqual(self.task._choice_attempt.phase, "blocked")
+        self.assertEqual(self.task.send_key.call_count, 1)
+        self.assertFalse(self.task._choice_memory.records)
 
 
 class TestProjectChoiceMemory(unittest.TestCase):
     def test_joint_fingerprints_keep_independent_progress(self):
-        """Count and every row width distinguish interleaved menus."""
+        """Interleaved choices retain separate approximate width fingerprints."""
         memory = ChoiceMemory()
 
         def select(lengths):
-            """Simulate another appearance of a menu."""
             memory.hide()
             decision = memory.prepare(lengths)
             memory.commit(decision)
