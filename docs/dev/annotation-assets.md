@@ -4,7 +4,7 @@ The source library lives in the `ok_templates` Git submodule. Open the parent pr
 
 ## Authoring and publishing
 
-Run `git submodule update --init --recursive` when working on source annotations. Save source files using Toolkit, then explicitly publish runtime resources. Saving source annotations alone does not publish changes to the application. Preserve the authored screenshots, annotations and published resources; commit source changes before updating the parent's gitlink.
+Run `git submodule update --init --recursive` when working on source annotations. Save source files using Toolkit, then explicitly publish runtime resources. Saving source annotations alone does not publish changes to the application. Preserve the authored screenshots, annotations and published resources; commit and push source changes to the annotation-source remote before updating the parent's gitlink. Confirm the pinned commit is reachable from that remote, not only present in a local clone. When the source PR is squash-merged, pin the actual merged commit before releasing the parent resource PR.
 
 `assets/coco_detection.json` is a historical archive and is not loaded by the application. Historical X-AnyLabeling work remains available in the source repository's Git history at `592f0adf22abf7509ea88670a6a51b00d7f17a92`.
 
