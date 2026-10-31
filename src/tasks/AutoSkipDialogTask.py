@@ -281,7 +281,11 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
                     self._choice_memory.hide()
             return
         if attempt.phase == "confirm":
-            self._observe_confirmation(frame)
+            updated = self.next_frame()
+            if updated is None:
+                self._stop_choice("确认选项时未获取到新截图")
+                return
+            self._observe_confirmation(updated)
             return
         if attempt.phase == "verify_move":
             self._verify_navigation(frame)
@@ -299,14 +303,18 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
             self._stop_choice("目标选项已经变暗，禁止继续选择", frame)
             return
         if focus is None:
-            # Fall back to first-item assumption only before moving focus.
-            if attempt.moves:
+            # A new attempt does not undo W/S sent to this menu earlier.
+            if (attempt.moves
+                    or self._choice_memory.has_navigated(attempt.decision.lengths)):
                 self._stop_choice("无法确认 W/S 后的当前高亮行", frame)
                 return
             focus = 0
         key = "s" if focus < target else "w" if focus > target else "f"
         step = attempt.moves
         self.screenshot(name=f"dialog_ws_before_{key}_{step}", frame=frame)
+        if key != "f":
+            # A failed return or missing capture does not prove no key arrived.
+            self._choice_memory.mark_navigated(attempt.decision)
         if self.send_key(key, down_time=0.08, after_sleep=0.12) is False:
             self._stop_choice(f"发送 {key.upper()} 失败", frame)
             return

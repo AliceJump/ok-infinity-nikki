@@ -129,6 +129,23 @@ class ChoiceMemory:
         """Start without any remembered choices or active menu."""
         self.records = []
         self.active = None
+        self._navigated_lengths = []
+
+    @staticmethod
+    def _same_fingerprint(expected, actual):
+        return (len(expected) == len(actual)
+                and all(abs(a - b) <= max(0.3, 0.05 * max(a, b))
+                        for a, b in zip(expected, actual)))
+
+    def has_navigated(self, lengths):
+        """Retain uncertain W/S delivery across attempts, just like menu progress."""
+        return any(self._same_fingerprint(saved, lengths)
+                   for saved in self._navigated_lengths)
+
+    def mark_navigated(self, decision):
+        """Remember input intent without committing a selection or advancing it."""
+        if not self.has_navigated(decision.lengths):
+            self._navigated_lengths.append(tuple(decision.lengths))
 
     def prepare(self, lengths):
         """Choose a saved fingerprint's next row, or row zero for a new one."""
@@ -136,9 +153,7 @@ class ChoiceMemory:
             return None
         matches = [
             record for record in self.records
-            if len(record.lengths) == len(lengths)
-            and all(abs(a - b) <= max(0.3, 0.05 * max(a, b))
-                    for a, b in zip(record.lengths, lengths))
+            if self._same_fingerprint(record.lengths, lengths)
         ]
         record = min(matches, key=lambda item: sum(
             abs(a - b) for a, b in zip(item.lengths, lengths)

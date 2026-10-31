@@ -8,12 +8,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class TestProjectConfig(unittest.TestCase):
-    def test_entrypoints_and_assets_exist(self):
+    def test_entrypoints_and_packaging_exist(self):
         for path in (
             "main.py",
             "main_debug.py",
             "src/config.py",
-            "assets/coco_detection.json",
             "pyappify.yml",
         ):
             with self.subTest(path=path):
