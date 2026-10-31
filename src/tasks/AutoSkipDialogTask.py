@@ -23,6 +23,8 @@ class ChoiceAttempt:
     phase: str = "navigate"
     checks: int = 0
     absent_frames: int = 0
+    visible_confirmation: tuple[str, tuple[float, ...]] | None = None
+    visible_confirmation_frames: int = 0
     pending_focus: int | None = None
     pending_origin: int | None = None
     move_checks: int = 0
@@ -211,21 +213,52 @@ class AutoSkipDialogTask(BaseINTask, TriggerTask):
         if frame is not None:
             self.screenshot(name="dialog_ws_failed", frame=frame)
 
+    def _complete_choice(self, frame):
+        """Commit the old menu once; the next trigger may inspect its successor."""
+        self.screenshot(name="dialog_ws_confirmed", frame=frame)
+        self._choice_memory.commit(self._choice_attempt.decision)
+        self._choice_memory.hide()
+        self._choice_attempt = None
+
     def _observe_confirmation(self, frame):
-        """Confirm a completed choice by two consecutive frames without W/S."""
+        """Require two matching observations that F completed the old menu."""
         attempt = self._choice_attempt
         if self._menu_visible(frame):
             attempt.absent_frames = 0
+            state = self._menu_state(frame)
+            evidence = None
+            if state is not None:
+                index = attempt.decision.index
+                if not self._same_menu_rows(attempt, state):
+                    evidence = ("replaced", state[3])
+                elif 0 <= index < len(state[1]) and state[1][index]:
+                    # F is only sent after this target was verified bright.
+                    evidence = ("dimmed", state[3])
+            previous = attempt.visible_confirmation
+            if (evidence is not None and previous is not None
+                    and evidence[0] == previous[0]
+                    and len(evidence[1]) == len(previous[1])
+                    and all(abs(a - b) <= 0.008
+                            for a, b in zip(evidence[1], previous[1]))):
+                attempt.visible_confirmation_frames += 1
+            else:
+                attempt.visible_confirmation = evidence
+                attempt.visible_confirmation_frames = 1 if evidence else 0
+            if evidence is not None:
+                if attempt.visible_confirmation_frames >= self.ABSENT_FRAMES:
+                    self._complete_choice(frame)
+                return
             attempt.checks += 1
             if attempt.checks >= self.CONFIRM_CHECKS:
                 self._stop_choice("按下 F 后选项菜单仍然存在", frame)
             return
+        # Absence, a replacement layout and a dimmed target are separate proof;
+        # one observation of each must never add up to a completed choice.
+        attempt.visible_confirmation = None
+        attempt.visible_confirmation_frames = 0
         attempt.absent_frames += 1
         if attempt.absent_frames >= self.ABSENT_FRAMES:
-            self.screenshot(name="dialog_ws_confirmed", frame=frame)
-            self._choice_memory.commit(attempt.decision)
-            self._choice_memory.hide()
-            self._choice_attempt = None
+            self._complete_choice(frame)
 
     def _verify_navigation(self, frame):
         """Wait for a focus update before treating W/S as an input failure.

@@ -133,3 +133,86 @@ class TestProjectDialogRecovery(unittest.TestCase):
         self.assertEqual(self.task._choice_attempt.phase, "blocked")
         self.assertFalse(self.task._choice_memory.records)
         self.task.send_key.assert_not_called()
+
+    def test_f_directly_opens_next_menu_without_waiting_for_absence(self):
+        initial = (self.lengths, (True, False), 1, self.positions)
+        replacement = ((7.0,), (False,), 0, (0.6,))
+        self.task._menu_state.side_effect = [initial, initial, replacement, replacement]
+        self.task._run_cycle()
+        self.assertFalse(self.task._choice_memory.records)
+        self.assertEqual(self.task.send_key.call_count, 1)
+        self.task._run_cycle()
+        self.assertIsNone(self.task._choice_attempt)
+        self.assertEqual(self.task.next_frame.call_count, 2)
+        self.assertEqual(self.task.send_key.call_count, 1)
+        self.assertEqual(self.task._choice_memory.records[0].lengths, self.lengths)
+        self.assertEqual(self.task._choice_memory.records[0].next_index, 0)
+
+        self.task._menu_state.side_effect = None
+        self.task._menu_state.return_value = replacement
+        self.task._run_cycle()
+        self.assertEqual(self.task.send_key.call_count, 2)
+        self.assertEqual(self.task._choice_attempt.decision.lengths, (7.0,))
+
+    def test_selected_bright_row_becomes_dim_in_two_new_captures(self):
+        initial = (self.lengths, (True, False), 1, self.positions)
+        completed = (self.lengths, (True, True), 0, self.positions)
+        self.task._menu_state.side_effect = [initial, initial, completed, completed]
+        self.task._run_cycle()
+        self.assertFalse(self.task._choice_memory.records)
+        self.task._run_cycle()
+        self.assertIsNone(self.task._choice_attempt)
+        self.assertEqual(self.task._choice_memory.records[0].next_index, 0)
+        self.assertEqual(self.task.next_frame.call_count, 2)
+        self.task.send_key.assert_called_once_with("f", down_time=0.08, after_sleep=0.12)
+
+    def test_transient_or_unreadable_replacement_does_not_commit(self):
+        self.task._run_cycle()
+        unchanged = (self.lengths, (False, False), 0, self.positions)
+        replacement = ((7.0,), (False,), 0, (0.6,))
+        for state in (replacement, unchanged, replacement, None, replacement):
+            self.task._menu_state.return_value = state
+            self.task._run_cycle()
+            self.assertFalse(self.task._choice_memory.records)
+        self.task._run_cycle()
+        self.assertIsNone(self.task._choice_attempt)
+        self.assertEqual(len(self.task._choice_memory.records), 1)
+        self.assertEqual(self.task.send_key.call_count, 1)
+
+    def test_different_visible_completion_evidence_is_not_combined(self):
+        self.task._run_cycle()
+        for state in (
+            ((7.0,), (False,), 0, (0.6,)),
+            ((7.0,), (False,), 0, (0.7,)),
+            (self.lengths, (True, False), 1, self.positions),
+        ):
+            self.task._menu_state.return_value = state
+            self.task._run_cycle()
+            self.assertFalse(self.task._choice_memory.records)
+        self.task._run_cycle()
+        self.assertIsNone(self.task._choice_attempt)
+        self.assertEqual(len(self.task._choice_memory.records), 1)
+        self.assertEqual(self.task.send_key.call_count, 1)
+
+    def test_absence_and_visible_replacement_need_separate_confirmation(self):
+        self.task._run_cycle()
+        self.task._menu_state.return_value = ((7.0,), (False,), 0, (0.6,))
+        for visible in (False, True, False, True):
+            self.task._menu_visible.return_value = visible
+            self.task._run_cycle()
+            self.assertFalse(self.task._choice_memory.records)
+        self.task._run_cycle()
+        self.assertIsNone(self.task._choice_attempt)
+        self.assertEqual(len(self.task._choice_memory.records), 1)
+        self.assertEqual(self.task.send_key.call_count, 1)
+
+    def test_missing_capture_after_replacement_does_not_commit(self):
+        self.task._run_cycle()
+        self.task._menu_state.return_value = ((7.0,), (False,), 0, (0.6,))
+        self.task._run_cycle()
+        self.task.next_frame.side_effect = None
+        self.task.next_frame.return_value = None
+        self.task._run_cycle()
+        self.assertEqual(self.task._choice_attempt.phase, "blocked")
+        self.assertFalse(self.task._choice_memory.records)
+        self.assertEqual(self.task.send_key.call_count, 1)
